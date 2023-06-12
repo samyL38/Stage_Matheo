@@ -52,7 +52,7 @@ path_com_function= [];
 i=0;
 while isempty(path_com_function) || i == 10
     cd ../
-    path_com_function= dir('common_functions');
+    path_com_function= dir('*\common_functions');
     i=i+1;
 end
 addpath(fullfile(path_com_function(1).folder,'\'));
