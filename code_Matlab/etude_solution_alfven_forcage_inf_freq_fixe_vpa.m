@@ -27,7 +27,7 @@ clc
 
 %% toolbox flottant haute précision
 %addpath('C:\Users\lalloz\Documents\Multiprecision Computing Toolbox')
-precision= 4*32;% % Setup default precision to 40 decimal digits (quadruple).
+precision= 8*32;% % Setup default precision to 40 decimal digits (quadruple).
 digits(precision);  
 
 set(0,'defaultTextInterpreter','latex')
@@ -111,16 +111,19 @@ Rmax= hadm;%r_exp_adm;
 nr= 5*10^2;%floor(Rmax);
 nz= 20;
 
-% Nombre adm
+% gradeurs caractéristiques
 va_num= B0/sqrt(rho_gal*mu_0); %Vitesse d'Alfven 
-S_num= va_num*L_carac/eta; %Nombre de Lundquist basé sur la hauteur récipient
-Ha_num= B0*L_carac*sqrt(sigma_gal/visco_gal); %Nombre d'Hartmann basé sur la hauteur récipient
-
 Tau_Alfven= L_carac/va_num;
 Tau_Ha= h^2/(2*nu_gal*Ha_num); 
 Tau_joule= rho_gal/(sigma_gal*B0^2);
 Tau_2D= Tau_joule*(h/L_trans)^2;
 Freq_Alfven= 1/Tau_Alfven;
+
+
+% Nombre adm
+S_num= va_num*L_carac/eta; %Nombre de Lundquist basé sur la hauteur récipient
+Ha_num= B0*L_carac*sqrt(sigma_gal/visco_gal); %Nombre d'Hartmann basé sur la hauteur récipient
+
 
 %%%% Controle parameter: frequency %%%%
 frequence_forcage= Freq_Alfven;% ; %en Hz %0.01*tau^-1
@@ -142,6 +145,46 @@ if Rnu_fixed == 1
     S_num= Ha_num*sqrt(Reta/Rnu);
     epsilon_inf= Reta;
 end 
+
+%% Champ à calculer
+% Entrer ici les champs à calculer
+calculate_U= [];
+calculate_V= [];
+calculate_B= [];
+calculate_E= [];
+calculate_J= [];
+calculate_boundary_signal= [];
+calculate_time_evolution_along_z= [];
+save_data= [];
+if ~exist('calculate_U') || isempty(calculate_U)
+    calculate_U=input('Do you want to calculate the velcoity field ? Yes (1), No (0) \n');
+end
+if ~exist('calculate_V') || isempty(calculate_V)
+    calculate_V=input('Do you want to calculate the potential gradient ? Yes (1), No (0) \n');
+end
+if ~exist('calculate_B') || isempty(calculate_B)
+    calculate_B=input('Do you want to calculate the magnetic field ? Yes (1), No (0) \n');
+end
+if ~exist('calculate_E') || isempty(calculate_E)
+    calculate_E=input('Do you want to calculate the electric field ? Yes (1), No (0) \n');
+end
+if ~exist('calculate_J') || isempty(calculate_J)
+    calculate_J=input('Do you want to calculate the current density ? Yes (1), No (0) \n');
+end
+if ~exist('calculate_boundary_signal') || isempty(calculate_boundary_signal)
+    calculate_boundary_signal=input(...
+        'Do you want to calculate boundary signals ? Yes (1), No (0) \n');
+end
+if ~exist('calculate_time_evolution_along_z') || isempty(calculate_time_evolution_along_z)
+    calculate_time_evolution_along_z=input(...
+        'Do you want to calculate the time evolution along z ? Yes (1), No (0) \n');
+end
+if ~exist('save_data') || isempty(save_data)
+    save_data=input(...
+        'Do you want to save data ? Yes (1), No (0) \n');
+end
+
+
 %% Modélisation du champ magnétique induit par une série de Fourier-Bessel (obsolete)
 % ordre_B= 1;
 % % champ induit pour un r positif
@@ -186,10 +229,11 @@ end
 
 % parameters by default
 nb_point_z= 25;
-nb_kt= 1200;%2500;%3200;%1000;%2100;%
-delta_kt= 5*2.25;%0.5;%
+nb_kt= 100;%1200;%2500;%3200;%1000;%2100;%
+delta_kt= 2.25;%0.5;%
 r_investigation= vpa(0.005);
 kt_adm= [];
+
 
 
 cas_single_mode= input('Study of a single transverse mode case ? Yes (1), No (0) \n');
@@ -217,8 +261,8 @@ switch cas_single_mode
         % les modes propres transversaux
         TF_b_theta_dot_kt= double((1- 0.5*kt_adm*sigma_r*sqrt(vpa(pi)).*exp(-sigma_r^2*kt_adm.^2/8)...
            .*besseli(0.5,sigma_r^2*kt_adm.^2/8))); %adimensionné par L_carac*b0
-       Bb_ri=double(kt_adm)/(pi*(double(J1roots.*besselj(2,J1roots))).^2).*TF_b_theta_dot_kt; 
-       Bb_ri= vpa(Bb_ri);
+       Bb_ri=(kt_adm)./(pi*(double(J1roots.*besselj(2,J1roots))).^2).*TF_b_theta_dot_kt; 
+       
     case 1
         if ~exist('kt_adm') || isempty(kt_adm)
         kt_adm=  vpa(input('write the mode to study: \n'));
@@ -301,14 +345,14 @@ elseif ~isempty( r_investigation) && length(kt_adm) >1
     % Ajout des fonctions propres aux coefficient et diminution de la
     % précisison
     A_less= vpa(A.*besselj(ordre_B,kt_adm(1:end-1)'.*r_investigation),precis_b);
-%    disp('fin A')
-%    B_less= vpa(B.*besselj(ordre_B,kt_adm(1:end-1)'.*r_investigation),precis_b);
+    disp('fin A')
+    B_less= vpa(B.*besselj(ordre_B,kt_adm(1:end-1)'.*r_investigation),precis_b);
     disp('fin B')
     V_less= vpa(V.*besselj(ordre_B,kt_adm(1:end-1)'.*r_investigation),precis_b);
     disp('fin V')
-%     J_less= vpa(J.*besselj(ordre_B,kt_adm(1:end-1)'.*r_investigation),precis_b);
-%     disp('fin J')
-%    E_less= vpa(E.*besselj(ordre_B,kt_adm(1:end-1)'.*r_investigation),precis_b);
+    J_less= vpa(J.*besselj(ordre_B,kt_adm(1:end-1)'.*r_investigation),precis_b);
+    disp('fin J')
+    E_less= vpa(E.*besselj(ordre_B,kt_adm(1:end-1)'.*r_investigation),precis_b);
     % Ar_less= vpa(Ar,precis_b);
     % dtAr_less= vpa(dtAr,precis_b);
     % Fr_phi= vpa((1- besselj(ordre_B-1,kt_adm(1:end-1)'.*r_investigation))./kt_adm(1:end-1)');
@@ -325,10 +369,10 @@ else
     disp('fin J')
     E_less= vpa(E.*besselj(ordre_B,kt_adm.*r_investigation),precis_b);
     disp('fin E')
-    Ar_less= vpa(Ar.*besselj(ordre_B,kt_adm.*r_investigation),precis_b);
-    disp('fin Ar')
-    dtAr_less= vpa(dtAr.*besselj(ordre_B,kt_adm.*r_investigation),precis_b);
-    disp('fin dtAr')
+    %Ar_less= vpa(Ar.*besselj(ordre_B,kt_adm.*r_investigation),precis_b);
+    %disp('fin Ar')
+    %dtAr_less= vpa(dtAr.*besselj(ordre_B,kt_adm.*r_investigation),precis_b);
+    %disp('fin dtAr')
 end
 disp('fin diminution précision')
 
@@ -473,25 +517,36 @@ disp('fin diminution précision')
            disp('fin')
         else
             tic
-            disp('debut calcul pour vitesse')
-%             [aenv,aphase,z2]=amplitudes_somme_onde(A_less,s1_less,k1_less,...
-%                 s2_less,k2_less,hadm_less,nz,precision,epsilon_inf,phase_inf);
-            disp('debut calcul pour gradient potentiel')
-            [venv,vphase,z2]=amplitudes_somme_onde(V_less,s1_less,k1_less,...
+            if calculate_U == 1
+                disp('debut calcul pour vitesse')
+                [aenv,aphase,z2]=amplitudes_somme_onde(A_less,s1_less,k1_less,...
+                    s2_less,k2_less,hadm_less,nz,precision,epsilon_inf,phase_inf);
+            end
+            if calculate_V == 1
+                disp('debut calcul pour gradient potentiel')
+                [venv,vphase,z2]=amplitudes_somme_onde(V_less,s1_less,k1_less,...
+                    s2_less,k2_less,hadm_less,nz,precision,epsilon_inf,phase_inf);
+            end
+            if calculate_B == 1
+                disp('debut calcul pour champ magnetic')
+               [benv,bphase,z2]=amplitudes_somme_onde(B_less,s1_less,k1_less,...
+                   s2_less,k2_less,hadm_less,nz,precision,epsilon_inf,phase_inf);
+            end
+            if calculate_J == 1
+           disp('debut calcul pour courant')
+            [jenv,jphase,z2]=amplitudes_somme_onde(J_less,s1_less,k1_less,...
                 s2_less,k2_less,hadm_less,nz,precision,epsilon_inf,phase_inf);
-            disp('debut calcul pour champ magnetic')
-%            [benv,bphase,z2]=amplitudes_somme_onde(B_less,s1_less,k1_less,...
-%                s2_less,k2_less,hadm_less,nz,precision,epsilon_inf,phase_inf);
-%            disp('debut calcul pour courant')
-%             [jenv,jphase,z2]=amplitudes_somme_onde(J_less,s1_less,k1_less,...
-%                 s2_less,k2_less,hadm_less,nz,precision,epsilon_inf,phase_inf);
-%              disp('debut calcul champ électrique')
-%             [eenv,ephase,z2]=amplitudes_somme_onde(E_less,s1_less,k1_less,...
-%                 s2_less,k2_less,hadm_less,nz,precision,epsilon_inf,phase_inf);
-%             disp('debut calcul potentiel electrique')
-%             [phienv,phiphase,z2]=amplitudes_somme_onde(Phi_less,s1_less,k1_less,...
-%                 s2_less,k2_less,hadm_less,nz,precision,epsilon_inf,phase_inf);
-
+            end
+            if calculate_E == 1
+                disp('debut calcul champ électrique')
+                [eenv,ephase,z2]=amplitudes_somme_onde(E_less,s1_less,k1_less,...
+                    s2_less,k2_less,hadm_less,nz,precision,epsilon_inf,phase_inf);
+            end
+            if calculate_V == 1
+                disp('debut calcul potentiel electrique')
+                [phienv,phiphase,z2]=amplitudes_somme_onde(Phi_less,s1_less,k1_less,...
+                    s2_less,k2_less,hadm_less,nz,precision,epsilon_inf,phase_inf);
+            end
             toc
         end
     disp('fin calcul enveloppe')
@@ -633,6 +688,7 @@ disp('fin diminution précision')
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % %% manual unwrap
+
 % % velocity
 % i_shift= [];
 % for i= 1:length(aphase)-1
@@ -671,355 +727,482 @@ disp('fin diminution précision')
 % xlabel('potential gradient')
 % ylabel('z axis')
 
-figure
-sgtitle(sprintf(['Enveloppe of different parameters with a simple bottom forcing, \n'...
-'non zero Diriclet conditions (freq= %4.1f Hz, S= %2.1f, $r= %4.1f$)'],frequence_forcage,S_num,r_investigation))
-% subplot(1,3,1)
-% plot(-benv(1:end),z(1:end),benv(1:end),z(1:end))
-% title('')
-% xlabel('magnetic field')
-% ylabel('z axis')
+%% save
+if save_data ==1 
+    disp('Choose the sought folder to save data')
+    selpath = uigetdir(['C:\Users\lalloz\Documents\these\onde alfven\etude theorique numerique',...
+        '\1_electrode_model_results\one plate forcing case\freq_fixe']);
+    save([selpath,'\donnees.mat'],'Bb_ri','aenv','aphase','benv','bphase',...
+        'venv','vphase','eenv','ephase','asignal','bsignal','esignal','vsignal',...
+        'time','Freq_Alfven','Ha_num','R','S_num','frequence_forcage','va_num',...
+    'kt_adm','kt_max','nb_kt','r_investigation','A_less','B_less','V_less',...
+    'J_less','E_less','k1_less','k2_less','s1_less','s2_less')  
+end
+%% figure to plot
+exp_Ha= floor(log10(double(Ha_num)));
+mantisse_Ha= double(Ha_num)/(10^(exp_Ha));
+exp_Rnu= floor(log10(double(Rnu)));
+mantisse_Rnu= double(Rnu)/(10^(exp_Rnu));
 
-% subplot(1,3,2)
-% plot(-aenv(1:end),z(1:end),aenv(1:end),z(1:end))
-% title('')
-% xlabel('azimuthal velocity')
-% ylabel('z axis')
+if calculate_U == 1
+    figure('name','Envelope_and_phase_of_u_\theta')
+    sgtitle(sprintf(['Envelope and phase of $u_\\theta$ at $Ha =%4.2f \\times 10^%i$,\n',...
+        '$R_\\eta = %4.2f$, $R_\\nu =%4.2f \\times 10^%i$, and $r = %4.2f$'],mantisse_Ha,exp_Ha,...
+        double(Reta),mantisse_Rnu,exp_Rnu,double(r_investigation)))
+    subplot(1,2,1)
+    plot(-aenv,z,aenv,z)
+    xlabel('$\max|\tilde{u}_\theta|/u_0$')
+    ylabel('z')
+    ax1= gca;
+    subplot(1,2,2)
+    plot(aphase,z)
+    xlabel('$\varphi_\Delta u_\theta$')
+    ylabel('z')
+    ax2= gca; 
+    Cfig.Children(1).TickLabelInterpreter= "latex";
+    Cfig.Children(2).TickLabelInterpreter= "latex";
+    Cfig.Children(1).FontSize= 14;
+    Cfig.Children(2).FontSize= 14;
+    ax1.XAxis.FontSize= 16;
+    ax1.YAxis.FontSize= 16;
+    ax1.XAxis.TickLabelInterpreter="latex";
+    ax1.YAxis.TickLabelInterpreter="latex";
+    ax2.XAxis.FontSize= 16;
+    ax2.YAxis.FontSize= 16;
+    ax2.XAxis.TickLabelInterpreter="latex";
+    ax2.YAxis.TickLabelInterpreter="latex";
+    %set
 
-subplot(1,3,2)
-plot(-venv(1:end),z(1:end),venv(1:end),z(1:end))
-title('')
-xlabel('potential gradient ')
-ylabel('z axis')
+end
 
-subplot(1,3,3)
-% plot(-eenv(1:end),z(1:end),eenv(1:end),z(1:end))
-% title('')
-% xlabel('electric field')
-% ylabel('z axis')
+if calculate_V == 1
+    figure('name','Envelope_and_phase_of_grad_phi_r')
+    sgtitle(sprintf(['Envelope and phase of $\\partial_r \\phi$ at $Ha =%4.2f \\times 10^%i$,\n',...
+        '$R_\\eta = %4.2f$, $R_\\nu =%4.2f \\times 10^%i$, and $r = %4.2f$'],mantisse_Ha,exp_Ha,...
+        double(Reta),mantisse_Rnu,exp_Rnu,double(r_investigation)))
+    subplot(1,2,1)
+    plot(-venv,z,venv,z)
+    xlabel('$\max|\partial_r \tilde\phi|/E_0$')
+    ylabel('z')
+    subplot(1,2,2)
+    ax1= gca;
+    plot(vphase,z)
+    xlabel('$\varphi_\Delta \partial_r \phi$')
+    ylabel('z')
+    ax2= gca; 
+    Cfig.Children(1).TickLabelInterpreter= "latex";
+    Cfig.Children(2).TickLabelInterpreter= "latex";
+    Cfig.Children(1).FontSize= 14;
+    Cfig.Children(2).FontSize= 14;
+    ax1.XAxis.FontSize= 16;
+    ax1.YAxis.FontSize= 16;
+    ax1.XAxis.TickLabelInterpreter="latex";
+    ax1.YAxis.TickLabelInterpreter="latex";
+    ax2.XAxis.FontSize= 16;
+    ax2.YAxis.FontSize= 16;
+    ax2.XAxis.TickLabelInterpreter="latex";
+    ax2.YAxis.TickLabelInterpreter="latex";
+end
 
-% subplot(1,5,4)
-% plot(-jenv(1:end),z(1:end),jenv(1:end),z(1:end))
-% title('')
-% xlabel('radial current')
-% ylabel('z axis')
-% 
+if calculate_B == 1
+    figure('name','Envelope_and_phase_of_b_\theta')
+    sgtitle(sprintf(['Envelope and phase of $b_\\theta$ at $Ha =%4.2f \\times 10^%i$,\n',...
+        '$R_\\eta = %4.2f$, $R_\\nu =%4.2f \\times 10^%i$, and $r = %4.2f$'],mantisse_Ha,exp_Ha,...
+        double(Reta),mantisse_Rnu,exp_Rnu,double(r_investigation)))
+    subplot(1,2,1)
+    plot(-benv,z,benv,z)
+    xlabel('$\max|\tilde{b}_\theta|/b_0$')
+    ylabel('z')
+    ax1= gca;
+    subplot(1,2,2)
+    plot(bphase,z)
+    xlabel('$\varphi_\Delta b_\theta$')
+    ylabel('z')
+    ax2= gca; 
+    Cfig.Children(1).TickLabelInterpreter= "latex";
+    Cfig.Children(2).TickLabelInterpreter= "latex";
+    Cfig.Children(1).FontSize= 14;
+    Cfig.Children(2).FontSize= 14;
+    ax1.XAxis.FontSize= 16;
+    ax1.YAxis.FontSize= 16;
+    ax1.XAxis.TickLabelInterpreter="latex";
+    ax1.YAxis.TickLabelInterpreter="latex";
+    ax2.XAxis.FontSize= 16;
+    ax2.YAxis.FontSize= 16;
+    ax2.XAxis.TickLabelInterpreter="latex";
+    ax2.YAxis.TickLabelInterpreter="latex";
+end
 
-figure
-sgtitle(sprintf(['Phase of different parameters with a simple bottom forcing, \n',...
-'Neumann top condition (freq= %4.1f Hz, S= %2.1f, $r= %4.1f$)'],frequence_forcage,S_num,r_investigation))
-% subplot(1,3,1)
-% plot(bphase(1:end),z(1:end))
-% title('')
-% xlabel('magnetic field phase')
-% ylabel('z axis')
+if calculate_E == 1
+    figure('name','Envelope_and_phase_of_E_r')
+    sgtitle(sprintf(['Envelope and phase of $E_r$ at $Ha =%4.2f \\times 10^%i$,\n',...
+        '$R_\\eta = %4.2f$, $R_\\nu =%4.2f \\times 10^%i$, and $r = %4.2f$'],mantisse_Ha,exp_Ha,...
+        double(Reta),mantisse_Rnu,exp_Rnu,double(r_investigation)))
+    subplot(1,2,1)
+    plot(-eenv,z,eenv,z)
+    xlabel('$\max|\tidle{E}_r|/E_0$')
+    ylabel('z')
+    ax1= gca;
+    subplot(1,2,2)
+    plot(ephase,z)
+    xlabel('$\varphi_\Delta E_r$')
+    ylabel('z')
+    ax2= gca; 
+    Cfig.Children(1).TickLabelInterpreter= "latex";
+    Cfig.Children(2).TickLabelInterpreter= "latex";
+    Cfig.Children(1).FontSize= 14;
+    Cfig.Children(2).FontSize= 14;
+    ax1.XAxis.FontSize= 16;
+    ax1.YAxis.FontSize= 16;
+    ax1.XAxis.TickLabelInterpreter="latex";
+    ax1.YAxis.TickLabelInterpreter="latex";
+    ax2.XAxis.FontSize= 16;
+    ax2.YAxis.FontSize= 16;
+    ax2.XAxis.TickLabelInterpreter="latex";
+    ax2.YAxis.TickLabelInterpreter="latex";
+end
 
-subplot(1,3,2)
-% plot(aphase(1:end),z(1:end))
-% title('')
-% xlabel('azimuthal velocity phase')
-% ylabel('z axis')
-
-subplot(1,3,3)
-plot(vphase(1:end),z(1:end))
-title('')
-xlabel('potential gradient phase ')
-ylabel('z axis')
-
-% subplot(1,3,3)
-% plot(ephase(1:end),z(1:end))
-% title('')
-% xlabel('electric field')
-% ylabel('z axis')
-
-% subplot(1,5,4)
-% plot(-jenv(1:end),z(1:end),jenv(1:end),z(1:end))
-% title('')
-% xlabel('radial current')
-% ylabel('z axis')
-% 
-
-
+if calculate_J == 1
+    figure('name','Envelope_and_phase_of_j_r')
+    sgtitle(sprintf(['Envelope and phase of $j_r$ at $Ha =%4.2f \\times 10^%i$,\n',...
+        '$R_\\eta = %4.2f$, $R_\\nu =%4.2f \\times 10^%i$, and $r = %4.2f$'],mantisse_Ha,exp_Ha,...
+        double(Reta),mantisse_Rnu,exp_Rnu,double(r_investigation)))
+    subplot(1,2,1)
+    plot(-jenv,z,jenv,z)
+    xlabel('$\max|\tilde{j}_r|/j_0$')
+    ylabel('z')
+    ax1= gca;
+    subplot(1,2,2)
+    plot(jphase,z)
+    xlabel('$\varphi_\Delta j_r$')
+    ylabel('z')
+    ax2= gca; 
+    Cfig.Children(1).TickLabelInterpreter= "latex";
+    Cfig.Children(2).TickLabelInterpreter= "latex";
+    Cfig.Children(1).FontSize= 14;
+    Cfig.Children(2).FontSize= 14;
+    ax1.XAxis.FontSize= 16;
+    ax1.YAxis.FontSize= 16;
+    ax1.XAxis.TickLabelInterpreter="latex";
+    ax1.YAxis.TickLabelInterpreter="latex";
+    ax2.XAxis.FontSize= 16;
+    ax2.YAxis.FontSize= 16;
+    ax2.XAxis.TickLabelInterpreter="latex";
+    ax2.YAxis.TickLabelInterpreter="latex";
+end
 
 %% calcul des signaux aux limites (top and bottom)
-t=[0:0.01*2*pi/epsilon_inf:2*pi/(epsilon_inf)];
-lim= 0.5*length(A(:,1));
-tic
+if calculate_boundary_signal ==1
+    t=[0:0.01*2*pi/epsilon_inf:2*pi/(epsilon_inf)];
+    lim= 0.5*length(A(:,1));
+   
+    if calculate_U == 1
     % champ vitesse
-%     [asignal_top,asignal_bottom]=calcul_signal_boundaries(A_less,s1_less,k1_less,...
-%            s2_less,k2_less,epsilon_inf, hadm_less,t,precision,sym('0'));
-%        disp('fin a')
-    % gradient de potentiel
-    [vsignal_top,vsignal_bottom]=calcul_signal_boundaries(V_less,s1_less,k1_less,...
+        [asignal_top,asignal_bottom]=calcul_signal_boundaries(A_less,s1_less,k1_less,...
                s2_less,k2_less,epsilon_inf, hadm_less,t,precision,sym('0'));
-       disp('fin v')
-    % champ magnétique
-%     [bsignal_top,bsignal_bottom]=calcul_signal_boundaries(B_less,s1_less,k1_less,...
-%                s2_less,k2_less,epsilon_inf, hadm_less,t,precision,sym('0'));
-%        disp('fin b')
-%     % courant électrique
-%     [jsignal_top,jsignal_bottom]=calcul_signal_boundaries(J_less,s1_less,k1_less,...
-%                s2_less,k2_less,epsilon_inf, hadm_less,t,precision,sym('0'));
-%     % champ électrique loi d'ohm
-    [esignal_top,esignal_bottom]=calcul_signal_boundaries(E_less,s1_less,k1_less,...
-               s2_less,k2_less,epsilon_inf, hadm_less,t,precision,sym('0'));
-       disp('fin e')
-% toc
+           disp('fin u')
+    end
+    if calculate_V == 1
+        % gradient de potentiel
+        [vsignal_top,vsignal_bottom]=calcul_signal_boundaries(V_less,s1_less,k1_less,...
+                   s2_less,k2_less,epsilon_inf, hadm_less,t,precision,sym('0'));
+        disp('fin grad_r phi')
+    end
+    if calculate_B == 1
+        % champ magnétique
+        [bsignal_top,bsignal_bottom]=calcul_signal_boundaries(B_less,s1_less,k1_less,...
+                   s2_less,k2_less,epsilon_inf, hadm_less,t,precision,sym('0'));
+           disp('fin b')
+    end
+    if calculate_J == 1
+    %     % courant électrique
+        [jsignal_top,jsignal_bottom]=calcul_signal_boundaries(J_less,s1_less,k1_less,...
+                   s2_less,k2_less,epsilon_inf, hadm_less,t,precision,sym('0'));
+    end
+    if calculate_E == 1
+    %     % champ électrique loi d'ohm
+        [esignal_top,esignal_bottom]=calcul_signal_boundaries(E_less,s1_less,k1_less,...
+                   s2_less,k2_less,epsilon_inf, hadm_less,t,precision,sym('0'));
+           disp('fin Er')
+    end
+end
 
 %% tracé des signaux aux limites
 
-% figure 
-% plot(t,jsignal_top)
-% hold on
-% plot(t,jsignal_bottom)
-% xlabel('scaled time')
-% ylabel('current')
-% legend('signal Jtop','signal Jbottom')
+if calculate_U == 1
+    Cfig= figure('name','boundary_signal_u_\theta');
+    plot(t,asignal_top)
+    hold on
+    plot(t,asignal_bottom)
+    xlabel('t')
+    ylabel('$u_\theta (r,z,t)$')
+    legend('$z=1$','$z=0$')
+    title(sprintf(['boundary signals of $u_\\theta$ at $Ha =%4.2f \\times 10^%i$,\n',...
+        '$R_\\eta = %4.2f$, $R_\\nu =%4.2f \\times 10^%i$, and $r = %4.2f$'],mantisse_Ha,exp_Ha,...
+        double(Reta),mantisse_Rnu,exp_Rnu,double(r_investigation)))
+    ax= gca;
+    Cfig.Children(2).TickLabelInterpreter= "latex";
+    Cfig.Children(2).FontSize= 14;
+    Cfig.Children(1).FontSize= 12;
+    Cfig.Children(1).Interpreter= "latex";
+    ax.XAxis.FontSize= 16;
+    ax.YAxis.FontSize= 16;
+    ax.XAxis.TickLabelInterpreter="latex";
+    ax.YAxis.TickLabelInterpreter="latex";
+end
+if calculate_B == 1
+    Cfig= figure('name','boundary_signal_b_theta');
+    plot(t,bsignal_top)
+    hold on
+    plot(t,bsignal_bottom)
+    xlabel('t')
+    ylabel('$b_\theta (r,z,t)$')
+    legend('$z=1$','$z=0$')
+    title(sprintf(['boundary signals of $b_\theta$ at $Ha =%4.2f \\times 10^%i$,\n',...
+        '$R_\\eta = %4.2f$, $R_\\nu =%4.2f \\times 10^%i$, and $r = %4.2f$'],mantisse_Ha,exp_Ha,...
+        double(Reta),mantisse_Rnu,exp_Rnu,double(r_investigation)))
+    ax= gca;
+    Cfig.Children(2).TickLabelInterpreter= "latex";
+    Cfig.Children(2).FontSize= 14;
+    Cfig.Children(1).FontSize= 12;
+    Cfig.Children(1).Interpreter= "latex";
+    ax.XAxis.FontSize= 16;
+    ax.YAxis.FontSize= 16;
+    ax.XAxis.TickLabelInterpreter="latex";
+    ax.YAxis.TickLabelInterpreter="latex";
+end
+if calculate_V == 1
+    Cfig= figure('name','boundary_signal_grad_r phi');
+    plot(t,vsignal_top)
+    hold on
+    plot(t,vsignal_bottom)
+    xlabel('t')
+    ylabel('$\partial_r \phi(r,z,t)$')
+    legend('$z=1$','$z=0$')
+    title(sprintf(['boundary signals of $\\partial_r \\phi$ at $Ha =%4.2f \\times 10^%i$,\n',...
+        '$R_\\eta = %4.2f$, $R_\\nu =%4.2f \\times 10^%i$, and $r = %4.2f$'],mantisse_Ha,exp_Ha,...
+        double(Reta),mantisse_Rnu,exp_Rnu,double(r_investigation)))
+    ax= gca;
+    Cfig.Children(2).TickLabelInterpreter= "latex";
+    Cfig.Children(2).FontSize= 14;
+    Cfig.Children(1).FontSize= 12;
+    Cfig.Children(1).Interpreter= "latex";
+    ax.XAxis.FontSize= 16;
+    ax.YAxis.FontSize= 16;
+    ax.XAxis.TickLabelInterpreter="latex";
+    ax.YAxis.TickLabelInterpreter="latex";
+end
+if calculate_E == 1
 
-figure 
-plot(t,asignal_top)
-hold on
-plot(t,asignal_bottom)
-xlabel('scaled time')
-ylabel('current')
-legend('signal velocity top','signal velocity down')
-
-figure 
-plot(t,vsignal_top)
-hold on
-plot(t,vsignal_bottom)
-xlabel('scaled time')
-ylabel('potential gradient')
-legend('signal grad(phi) top','signal grad(phi) bottom')
-
-figure 
-plot(t,esignal_top)
-hold on
-plot(t,esignal_bottom)
-xlabel('scaled time')
-ylabel('electric field')
-legend('signal Er top','signal Er bottom')
-
-figure 
-plot(t,bsignal_top)
-hold on
-plot(t,bsignal_bottom)
-xlabel('scaled time')
-ylabel('mangetic field')
-legend('signal b top','signal b bottom')
-%%
-figure 
-plot(t,phisignal_top)
-hold on
-plot(t,phisignal_bottom)
-xlabel('non-scaled time')
-ylabel('electric potential')
-legend('signal phi top','signal phi bottom')
-%%  
-time=[0:0.2*2*vpa(pi)/epsilon_inf:2*vpa(pi)/(epsilon_inf)];
-length(time)
-%%
-i=1
-asignal= [];
-vsignal= [];
-bsignal= [];
-jsignal= [];
-esignal= [];
-phisignal= [];
-for t = time
-asignal_inf= calcul_signal_along_z(A_less,s1_less,k1_less,...
-               s2_less,k2_less,epsilon_inf,z,t,precision,0);
-% vsignal_inf= calcul_signal_along_z(V_less,s1_less,k1_less,...
-%                s2_less,k2_less,epsilon_inf,z,t,precision,0);
-            
-bsignal_inf= calcul_signal_along_z(B_less,s1_less,k1_less,...
-               s2_less,k2_less,epsilon_inf,z,t,precision,0);
-
-% jsignal_inf= calcul_signal_along_z(J_less,s1_less,k1_less,...
-%                s2_less,k2_less,epsilon_inf,z,t,precision,0);
-           
-esignal_inf= calcul_signal_along_z(E_less,s1_less,k1_less,...
-               s2_less,k2_less,epsilon_inf,z,t,precision,0);  
-           
-%phisignal_inf= calcul_signal_along_z(Phi_less,s1_less,k1_less,...
-%               s2_less,k2_less,epsilon_inf,z,t,precision,0);                
-% j_ohm_signal_inf= calcul_signal_along_z(J_ohm_less,s1_less,k1_less,...
-%                s2_less,k2_less,epsilon_inf,z,t,precision,0);
-
-asignal= [asignal ; asignal_inf ];           
-%vsignal= [vsignal ; vsignal_inf ];
-bsignal= [bsignal ; bsignal_inf ];
-% jsignal= [jsignal ; jsignal_inf ];
-esignal= [esignal ; esignal_inf ];
-%phisignal= [phisignal ; phisignal_inf ];
-
-i= i+1
+    Cfig= figure('name','boundary_signal_E_r');
+    plot(t,esignal_top)
+    hold on
+    plot(t,esignal_bottom)
+    xlabel('t')
+    ylabel('$E_r(r,z,t)$')
+    legend('$z=1$','$z=0$')
+    title(sprintf(['boundary signals of $E_r$ at $Ha =%4.2f \\times 10^%i$,\n',...
+        '$R_\\eta = %4.2f$, $R_\\nu =%4.2f \\times 10^%i$, and $r = %4.2f$'],mantisse_Ha,exp_Ha,...
+        double(Reta),mantisse_Rnu,exp_Rnu,double(r_investigation)))
+    ax= gca;
+    Cfig.Children(2).TickLabelInterpreter= "latex";
+    Cfig.Children(2).FontSize= 14;
+    Cfig.Children(1).FontSize= 12;
+    Cfig.Children(1).Interpreter= "latex";
+    ax.XAxis.FontSize= 16;
+    ax.YAxis.FontSize= 16;
+    ax.XAxis.TickLabelInterpreter="latex";
+    ax.YAxis.TickLabelInterpreter="latex";
+end
+if calculate_J == 1
+    Cfig= figure('name','boundary_signal_j_r');
+    plot(t,jsignal_top)
+    hold on
+    plot(t,jsignal_bottom)
+    xlabel('t')
+    ylabel('$j(r,z,t)$')
+    legend('$z=1$','$z=0$')
+    title(sprintf(['boundary signal of $j_r$ at $Ha =%4.2f \\times 10^%i$,\n',...
+        '$R_\\eta = %4.2f$, $R_\\nu =%4.2f \\times 10^%i$, and $r = %4.2f$'],mantisse_Ha,exp_Ha,...
+        double(Reta),mantisse_Rnu,exp_Rnu,double(r_investigation)))
+    ax= gca;
+    Cfig.Children(2).TickLabelInterpreter= "latex";
+    Cfig.Children(2).FontSize= 14;
+    Cfig.Children(1).FontSize= 12;
+    Cfig.Children(1).Interpreter= "latex";
+    ax.XAxis.FontSize= 16;
+    ax.YAxis.FontSize= 16;
+    ax.XAxis.TickLabelInterpreter="latex";
+    ax.YAxis.TickLabelInterpreter="latex";
 end
 
-%% save
-selpath = uigetdir(['C:\Users\lalloz\Documents\these\onde alfven\etude theorique numerique',...
-    '\1_electrode_model_results\one plate forcing case\freq_fixe']);
-save([selpath,'\donnees.mat'],'Bb_ri','aenv','aphase','benv','bphase',...
-    'venv','vphase','eenv','ephase','asignal','bsignal','esignal','vsignal',...
-    'time','Freq_Alfven','Ha_num','R','S_num','frequence_forcage','va_num',...
-'kt_adm','kt_max','nb_kt','r_investigation','A_less','B_less','V_less',...
-'J_less','E_less','k1_less','k2_less','s1_less','s2_less')  
+ 
+%%  calculation time evolution along z
 
-%%
+if calculate_time_evolution_along_z == 1
+    time=[0:0.2*2*vpa(pi)/epsilon_inf:2*vpa(pi)/(epsilon_inf)];
+    length(time)
+    
+    i=1
+    asignal= [];
+    vsignal= [];
+    bsignal= [];
+    jsignal= [];
+    esignal= [];
+    phisignal= [];
+    for t = time
 
-set(0,'defaultTextInterpreter','latex')
-opengl software
-fig_evolution_suivant_z= figure;
+        if calculate_U == 1
+            % champ vitesse
+            asignal_inf= calcul_signal_along_z(A_less,s1_less,k1_less,...
+                   s2_less,k2_less,epsilon_inf,z,t,precision,0);
+            asignal= [asignal ; asignal_inf ];           
+            disp('fin u')
+        end
+        if calculate_V == 1
+            % gradient de potentiel
+            vsignal_inf= calcul_signal_along_z(V_less,s1_less,k1_less,...
+                    s2_less,k2_less,epsilon_inf,z,t,precision,0);
+            vsignal= [vsignal ; vsignal_inf ];    
+            disp('fin grad_r phi')
+        end
+        if calculate_B == 1
+            % champ magnétique
+            bsignal_inf= calcul_signal_along_z(B_less,s1_less,k1_less,...
+                   s2_less,k2_less,epsilon_inf,z,t,precision,0);
+            bsignal= [bsignal ; bsignal_inf ];
+           disp('fin b')
+        end
+        if calculate_J == 1
+            % courant électrique
+            jsignal_inf= calcul_signal_along_z(J_less,s1_less,k1_less,...
+                    s2_less,k2_less,epsilon_inf,z,t,precision,0);
+            jsignal= [jsignal ; jsignal_inf ];
+            disp('fin j')
+        end
+        if calculate_E == 1
+            % champ électrique loi d'ohm
+            esignal_inf= calcul_signal_along_z(E_less,s1_less,k1_less,...
+                   s2_less,k2_less,epsilon_inf,z,t,precision,0);  
+            esignal= [esignal ; esignal_inf ];
+           disp('fin Er')
+        end
+    
+    % 
+                
+    
+    
+    % 
+               
+    
+               
+    %phisignal_inf= calcul_signal_along_z(Phi_less,s1_less,k1_less,...
+    %               s2_less,k2_less,epsilon_inf,z,t,precision,0);                
+    % j_ohm_signal_inf= calcul_signal_along_z(J_ohm_less,s1_less,k1_less,...
+    %                s2_less,k2_less,epsilon_inf,z,t,precision,0);
+    
+    
+    i= i+1
+    end
+end
 
-
-
-for i = [1:1:length(time)]
-% subplot(1,5,1)
-% plot(venv,z,'r',-venv,z,'r')
-% hold on
-% plot(vsignal(i,:),z,'k');
-% hold off
-% title('Electric potential')
-% xlabel('$V/B_0\eta$')
-% ylabel('$z (\omega/\eta)^{1/2}$')
-
-subplot(1,3,2)
-plot(aenv,z,'r',-aenv,z,'r')
-hold on
-plot(asignal(i,:),z,'k');
-hold off
-title(sprintf('velocity field'))
-xlabel('$u/u_0$')
-ylabel('$z/L_{carac}$')
-
-subplot(1,3,3)
-plot(eenv,z,'r',-eenv,z,'r')
-hold on
-plot(esignal(i,:),z,'k');
-hold off
-title('electric field')
-xlabel('$E/ E_0$')
-ylabel('$z/L_{carac}$')
-
-% subplot(1,2,2)
-% plot(venv,z,'r',-venv,z,'r')
-% hold on
-% plot(vsignal(i,:),z,'k');
-% title('potential gradient')
-% xlabel('$u/ u_0$')
-% ylabel('$z/L_{carac}$')
-% hold off
-
-subplot(1,3,1)
-plot(benv,z,'r',-benv,z,'r')
-hold on
-plot(bsignal(i,:),z,'k');
-hold off
-title('magnetic field')
-xlabel('$b/ b_0$')
-ylabel('$z/L_{carac}$')
-% % 
-% subplot(1,5,4)
-% plot(jenv(2:end-1),z(2:end-1),'r',-jenv(2:end-1),z(2:end-1),'r')
-% hold on
-% % plot(jsignal(i,2:end-1),z(2:end-1),'k');
-% hold off
-% title(sprintf('electric current'))
-% xlabel('$j/ j_0$')
-% ylabel('$z/L_{carac}$')
+%
+% 
+% set(0,'defaultTextInterpreter','latex')
+% opengl software
+% fig_evolution_suivant_z= figure;
 % 
 % 
-% subplot(1,4,4)
+% 
+% for i = [1:1:length(time)]
+% % subplot(1,5,1)
+% % plot(venv,z,'r',-venv,z,'r')
+% % hold on
+% % plot(vsignal(i,:),z,'k');
+% % hold off
+% % title('Electric potential')
+% % xlabel('$V/B_0\eta$')
+% % ylabel('$z (\omega/\eta)^{1/2}$')
+% 
+% subplot(1,3,2)
+% plot(aenv,z,'r',-aenv,z,'r')
+% hold on
+% plot(asignal(i,:),z,'k');
+% hold off
+% title(sprintf('velocity field'))
+% xlabel('$u/u_0$')
+% ylabel('$z/L_{carac}$')
+% 
+% subplot(1,3,3)
 % plot(eenv,z,'r',-eenv,z,'r')
 % hold on
 % plot(esignal(i,:),z,'k');
 % hold off
-% title('electric potental')
+% title('electric field')
 % xlabel('$E/ E_0$')
 % ylabel('$z/L_{carac}$')
-
-
-
-
-sgtitle(sprintf('Enveloppe of different parameters, \n simple bottom forcing'))
-pause(0.5)
-video_struc(i)= getframe(fig_evolution_suivant_z);
-i
-hold off
-
-
-
-end
-%% sauvegarde video
-
-    for i=1:length(video_struc)
-        video_struc_bis(i)= video_struc(i);
-        i
-    end
-    v= VideoWriter('film_evolution_signal_suivant_z_B_7T_Finf_5Hz.avi');
-    v.FrameRate= 1;
-    open(v)
-    writeVideo(v,video_struc_bis)
-    close(v)
-    clear v
-
-
-
-          
-%% figure enveloppe et phase
-
-% for the electric potential
-    if show_fig == 1
-    Fig_enveloppe_phase_onde= figure('name','fig_enveloppe_onde');
-    subplot(1,2,1)
-    %axis([-Bmax Bmax 0 hadm])
-    title('enveloppe of Electric potential')
-    xlabel('$V/ \left(b_0\,L_{carac}\,\omega\right)$')
-    ylabel('$z/L_{carac}$')
-    hold on
-    plot(venv,z,'r',-venv,z,'r')
-
-    subplot(1,2,2)
-    %axis([-Vmax Vmax 0 hadm])
-    plot(vphase,z,'k')
-    ylabel('$z/L_{carac}$')
-    xlabel('Phase to forcing (rad)')
-    title('Phase of Electric potential')
-    xticks(-pi/2:pi/4:pi/2) 
-    xticklabels({'-\pi/2','-\pi/4','0','\pi/4','\pi/2'})
-    sgtitle('Electric potential behaviours')
-    end 
-
-% for the magnetic field    
-    if show_fig == 1
-    Fig_enveloppe_phase_onde= figure('name','fig_enveloppe_onde');
-    subplot(1,2,1)
-    %axis([-Bmax Bmax 0 hadm])
-    title('enveloppe of magnetic field')
-    xlabel('$b/ \left(b_0)$')
-    ylabel('$z/L_{carac}$')
-    hold on
-    plot(benv,z,'r',-benv,z,'r')
-
-    subplot(1,2,2)
-    %axis([-Vmax Vmax 0 hadm])
-    plot(bphase,z,'k')
-    ylabel('$z/L_{carac}$')
-    xlabel('Phase to forcing (rad)')
-    title('Phase of magnetic field')
-    xticks(-pi/2:pi/4:pi/2) 
-    xticklabels({'-\pi/2','-\pi/4','0','\pi/4','\pi/2'})
-    sgtitle('magnetic field behaviours')
-    end   
-    
-% extraction ratio ampl / phase
-    disp('debut calcul ration ampl et dephasage')
-    ratio_ampl= venv(end)/venv(1);
-    phase_bot= vphase(1);
-    phase_up= vphase(end);
-    dephasage= vphase(end)-vphase(1);
-    disp('fin calcul ration ampl et dephasage')
-
+% 
+% % subplot(1,2,2)
+% % plot(venv,z,'r',-venv,z,'r')
+% % hold on
+% % plot(vsignal(i,:),z,'k');
+% % title('potential gradient')
+% % xlabel('$u/ u_0$')
+% % ylabel('$z/L_{carac}$')
+% % hold off
+% 
+% subplot(1,3,1)
+% plot(benv,z,'r',-benv,z,'r')
+% hold on
+% plot(bsignal(i,:),z,'k');
+% hold off
+% title('magnetic field')
+% xlabel('$b/ b_0$')
+% ylabel('$z/L_{carac}$')
+% % % 
+% % subplot(1,5,4)
+% % plot(jenv(2:end-1),z(2:end-1),'r',-jenv(2:end-1),z(2:end-1),'r')
+% % hold on
+% % % plot(jsignal(i,2:end-1),z(2:end-1),'k');
+% % hold off
+% % title(sprintf('electric current'))
+% % xlabel('$j/ j_0$')
+% % ylabel('$z/L_{carac}$')
+% % 
+% % 
+% % subplot(1,4,4)
+% % plot(eenv,z,'r',-eenv,z,'r')
+% % hold on
+% % plot(esignal(i,:),z,'k');
+% % hold off
+% % title('electric potental')
+% % xlabel('$E/ E_0$')
+% % ylabel('$z/L_{carac}$')
+% 
+% 
+% 
+% 
+% sgtitle(sprintf('Enveloppe of different parameters, \n simple bottom forcing'))
+% pause(0.5)
+% video_struc(i)= getframe(fig_evolution_suivant_z);
+% i
+% hold off
+% 
+% 
+% 
+% end
+% %% sauvegarde video
+% 
+%     for i=1:length(video_struc)
+%         video_struc_bis(i)= video_struc(i);
+%         i
+%     end
+%     v= VideoWriter('film_evolution_signal_suivant_z_B_7T_Finf_5Hz.avi');
+%     v.FrameRate= 1;
+%     open(v)
+%     writeVideo(v,video_struc_bis)
+%     close(v)
+%     clear v
 
 
 
