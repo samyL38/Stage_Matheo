@@ -76,6 +76,10 @@ addpath(fullfile(path_com_function(1).folder,'\'));
 
 %% Paramètre du problème
 syms mu_0 sigma_gal visco_gal rho_gal omega_0 B0 h I0 kt_max epsilon
+
+%initialisation grandeur exp
+B0= [];%champ magnetique uniforme en Tesla
+
 %Paramètres physiques
 mu_0= vpa(1.25*sym(1e-6));
 sigma_gal= vpa(3.46*sym(1e6));
@@ -85,12 +89,15 @@ rho_gal= vpa(6440);% masse volumique Galinstan kg/m3
 nu_gal= visco_gal/rho_gal;
 
 % Paramètres géométriques/expérimentaux
-B0= vpa(5); %champ magnetique uniforme en Tesla
+if ~exist('B0') || isempty(B0)
+    B0= vpa(input('Write the value of the magnetic field B0 (in T):\n'));
+end
 diam_elec= 1e-3; % en mètre
 rayon_elec= diam_elec/2;
 dist_inter_elec= 2*10^-3; % en mètre
 h= vpa(0.1); % distance entre la plaque inf et sup en mètre
 phase_inf= sym(0);
+
 % Grandeurs caractéristiques
 L_carac=h;%(eta/omega_0)^(1/2);%longueur caractéristique ==> hauteur de la cuve
 tau_eta= L_carac^2/eta;
@@ -111,18 +118,19 @@ Rmax= hadm;%r_exp_adm;
 nr= 5*10^2;%floor(Rmax);
 nz= 20;
 
-% gradeurs caractéristiques
+
+% Nombre adm
+S_num= B0/sqrt(rho_gal*mu_0)*L_carac/eta; %Nombre de Lundquist basé sur la hauteur récipient
+Ha_num= B0*L_carac*sqrt(sigma_gal/visco_gal); %Nombre d'Hartmann basé sur la hauteur récipient
+Pm_num= vpa(nu_gal/(eta)); %nb de Prandtl magnétique 
+
+% grandeurs caractéristiques
 va_num= B0/sqrt(rho_gal*mu_0); %Vitesse d'Alfven 
 Tau_Alfven= L_carac/va_num;
 Tau_Ha= h^2/(2*nu_gal*Ha_num); 
 Tau_joule= rho_gal/(sigma_gal*B0^2);
 Tau_2D= Tau_joule*(h/L_trans)^2;
 Freq_Alfven= 1/Tau_Alfven;
-
-
-% Nombre adm
-S_num= va_num*L_carac/eta; %Nombre de Lundquist basé sur la hauteur récipient
-Ha_num= B0*L_carac*sqrt(sigma_gal/visco_gal); %Nombre d'Hartmann basé sur la hauteur récipient
 
 
 %%%% Controle parameter: frequency %%%%
@@ -133,7 +141,7 @@ if ~exist('frequence_forcage') || isempty(frequence_forcage)
 end
 omega_inf= vpa(2*sym(pi)*frequence_forcage);%390);
 epsilon_inf= tau_eta*omega_inf;
-Pm_num= vpa(nu_gal/(eta)); %nb de Prandtl magnétique 
+
 
 %%% New control parameter
 Rnu_fixed= 0;
@@ -156,8 +164,10 @@ calculate_J= [];
 calculate_boundary_signal= [];
 calculate_time_evolution_along_z= [];
 save_data= [];
+save_video_time_evol_along_z= [];
+
 if ~exist('calculate_U') || isempty(calculate_U)
-    calculate_U=input('Do you want to calculate the velcoity field ? Yes (1), No (0) \n');
+    calculate_U=input('Do you want to calculate the velocity field ? Yes (1), No (0) \n');
 end
 if ~exist('calculate_V') || isempty(calculate_V)
     calculate_V=input('Do you want to calculate the potential gradient ? Yes (1), No (0) \n');
@@ -182,6 +192,10 @@ end
 if ~exist('save_data') || isempty(save_data)
     save_data=input(...
         'Do you want to save data ? Yes (1), No (0) \n');
+end
+if ~exist('save_video_time_evol_along_z') || isempty(save_video_time_evol_along_z)
+    save_video_time_evol_along_z=input(...
+        'Do you want to save figure on time evolution along z ? Yes (1), No (0) \n');
 end
 
 
@@ -229,9 +243,9 @@ end
 
 % parameters by default
 nb_point_z= 25;
-nb_kt= 100;%1200;%2500;%3200;%1000;%2100;%
+nb_kt= 1200;%2500;%3200;%1000;%2100;%
 delta_kt= 2.25;%0.5;%
-r_investigation= vpa(0.005);
+r_investigation= []; %location scaled with h
 kt_adm= [];
 
 
@@ -242,13 +256,16 @@ switch cas_single_mode
     
     case 0
         if ~exist('r_investigation') || isempty(r_investigation)
-        r_investigation= input('Write the scaled location for the calculation: \n');
+        r_investigation= vpa(input('Write the scaled location for the calculation: \n'));
         end
         if ~exist('nb_kt') || isempty(nb_kt)
         nb_kt= input('Write the number of transverse mode to test: \n');
         end
         if ~exist('delta_kt') || isempty(delta_kt)
         delta_kt= input('Value of the discretisation for kt ?\n'); %1 exemple, 355   
+        end
+        if ~exist('nb_point_z') || isempty(nb_point_z)
+        nb_point_z= input('Write the number of points along the z axis'); %1 exemple, 355   
         end
         ordre_B= 1;
         % location and transverse mode vectors
@@ -275,10 +292,6 @@ switch cas_single_mode
                 r_investigation= input('Write the value of the scaled location: \n');
                 J1roots= vpa(besselzero(1,2,1)); %determine the roots of J1 in order to find the transverse mode
                 R= (J1roots(2)-J1roots(1))/kt_adm;
-                %TF_b_theta_dot_kt= double((1- 0.5*kt_adm*sigma_r*sqrt(vpa('pi')).*exp(-sigma_r^2*kt_adm.^2/8)...
-                %    .*besseli(0.5,sigma_r^2*kt_adm.^2/8))); %adimensionné par L_carac*b0
-                %Bb_ri=double(kt_adm)/(pi*(double(J1roots(1).*besselj(2,J1roots(1)))).^2).*TF_b_theta_dot_kt; 
-                %Bb_ri= vpa(Bb_ri);
                 TF_b_theta_dot_kt= (1- 0.5*sigma_r*kt_adm*sqrt(vpa(pi)).*exp(-sigma_r^2*kt_adm.^2/8)...
                     .*besseli(0.5,sigma_r^2*kt_adm.^2/8)); %adimensionné par L_carac*b0
                 Bb_ri= kt_adm/(vpa(pi)*(J1roots(1).*besselj(2,J1roots(1))).^2)*TF_b_theta_dot_kt; 
@@ -505,14 +518,12 @@ disp('fin diminution précision')
                s2_less,k2_less,hadm_less,nz);
            [aenv,aphase,z2]=amplitudes(A_less,s1_less,k1_less,...
                s2_less,k2_less,hadm_less,nz);
-           [dtarenv,dtarphase,z2]=amplitudes(dtAr_less,s1_less,k1_less,...
-               s2_less,k2_less,hadm_less,nz);
            [jenv,jphase,z2]=amplitudes(J_less,s1_less,k1_less,...
                s2_less,k2_less,hadm_less,nz);
            [eenv,ephase,z2]=amplitudes(E_less,s1_less,k1_less,...
                s2_less,k2_less,hadm_less,nz);
-           [arenv,arphase,z2]=amplitudes(Ar_less,s1_less,k1_less,...
-               s2_less,k2_less,hadm_less,nz);
+%            [arenv,arphase,z2]=amplitudes(Ar_less,s1_less,k1_less,...
+%                s2_less,k2_less,hadm_less,nz);
 
            disp('fin')
         else
@@ -540,11 +551,6 @@ disp('fin diminution précision')
             if calculate_E == 1
                 disp('debut calcul champ électrique')
                 [eenv,ephase,z2]=amplitudes_somme_onde(E_less,s1_less,k1_less,...
-                    s2_less,k2_less,hadm_less,nz,precision,epsilon_inf,phase_inf);
-            end
-            if calculate_V == 1
-                disp('debut calcul potentiel electrique')
-                [phienv,phiphase,z2]=amplitudes_somme_onde(Phi_less,s1_less,k1_less,...
                     s2_less,k2_less,hadm_less,nz,precision,epsilon_inf,phase_inf);
             end
             toc
@@ -743,9 +749,11 @@ exp_Ha= floor(log10(double(Ha_num)));
 mantisse_Ha= double(Ha_num)/(10^(exp_Ha));
 exp_Rnu= floor(log10(double(Rnu)));
 mantisse_Rnu= double(Rnu)/(10^(exp_Rnu));
+exp_r_invest= floor(log10(double(r_investigation)));
+mantisse_r_invest= double(r_investigation)/(10^(exp_r_invest));
 
 if calculate_U == 1
-    figure('name','Envelope_and_phase_of_u_\theta')
+    Cfig= figure('name','Envelope_and_phase_of_u_\theta');
     sgtitle(sprintf(['Envelope and phase of $u_\\theta$ at $Ha =%4.2f \\times 10^%i$,\n',...
         '$R_\\eta = %4.2f$, $R_\\nu =%4.2f \\times 10^%i$, and $r = %4.2f$'],mantisse_Ha,exp_Ha,...
         double(Reta),mantisse_Rnu,exp_Rnu,double(r_investigation)))
@@ -776,7 +784,7 @@ if calculate_U == 1
 end
 
 if calculate_V == 1
-    figure('name','Envelope_and_phase_of_grad_phi_r')
+    Cfig= figure('name','Envelope_and_phase_of_grad_phi_r');
     sgtitle(sprintf(['Envelope and phase of $\\partial_r \\phi$ at $Ha =%4.2f \\times 10^%i$,\n',...
         '$R_\\eta = %4.2f$, $R_\\nu =%4.2f \\times 10^%i$, and $r = %4.2f$'],mantisse_Ha,exp_Ha,...
         double(Reta),mantisse_Rnu,exp_Rnu,double(r_investigation)))
@@ -805,7 +813,7 @@ if calculate_V == 1
 end
 
 if calculate_B == 1
-    figure('name','Envelope_and_phase_of_b_\theta')
+    Cfig= figure('name','Envelope_and_phase_of_b_\theta');
     sgtitle(sprintf(['Envelope and phase of $b_\\theta$ at $Ha =%4.2f \\times 10^%i$,\n',...
         '$R_\\eta = %4.2f$, $R_\\nu =%4.2f \\times 10^%i$, and $r = %4.2f$'],mantisse_Ha,exp_Ha,...
         double(Reta),mantisse_Rnu,exp_Rnu,double(r_investigation)))
@@ -834,13 +842,13 @@ if calculate_B == 1
 end
 
 if calculate_E == 1
-    figure('name','Envelope_and_phase_of_E_r')
+    Cfig= figure('name','Envelope_and_phase_of_E_r');
     sgtitle(sprintf(['Envelope and phase of $E_r$ at $Ha =%4.2f \\times 10^%i$,\n',...
         '$R_\\eta = %4.2f$, $R_\\nu =%4.2f \\times 10^%i$, and $r = %4.2f$'],mantisse_Ha,exp_Ha,...
         double(Reta),mantisse_Rnu,exp_Rnu,double(r_investigation)))
     subplot(1,2,1)
     plot(-eenv,z,eenv,z)
-    xlabel('$\max|\tidle{E}_r|/E_0$')
+    xlabel('$\max|\tilde{E}_r|/E_0$')
     ylabel('z')
     ax1= gca;
     subplot(1,2,2)
@@ -863,7 +871,7 @@ if calculate_E == 1
 end
 
 if calculate_J == 1
-    figure('name','Envelope_and_phase_of_j_r')
+    Cfig= figure('name','Envelope_and_phase_of_j_r');
     sgtitle(sprintf(['Envelope and phase of $j_r$ at $Ha =%4.2f \\times 10^%i$,\n',...
         '$R_\\eta = %4.2f$, $R_\\nu =%4.2f \\times 10^%i$, and $r = %4.2f$'],mantisse_Ha,exp_Ha,...
         double(Reta),mantisse_Rnu,exp_Rnu,double(r_investigation)))
@@ -892,7 +900,7 @@ if calculate_J == 1
 end
 
 %% calcul des signaux aux limites (top and bottom)
-if calculate_boundary_signal ==1
+if calculate_boundary_signal == 1
     t=[0:0.01*2*pi/epsilon_inf:2*pi/(epsilon_inf)];
     lim= 0.5*length(A(:,1));
    
@@ -918,6 +926,7 @@ if calculate_boundary_signal ==1
     %     % courant électrique
         [jsignal_top,jsignal_bottom]=calcul_signal_boundaries(J_less,s1_less,k1_less,...
                    s2_less,k2_less,epsilon_inf, hadm_less,t,precision,sym('0'));
+         disp('fin jr')
     end
     if calculate_E == 1
     %     % champ électrique loi d'ohm
@@ -928,130 +937,133 @@ if calculate_boundary_signal ==1
 end
 
 %% tracé des signaux aux limites
-
-if calculate_U == 1
-    Cfig= figure('name','boundary_signal_u_\theta');
-    plot(t,asignal_top)
-    hold on
-    plot(t,asignal_bottom)
-    xlabel('t')
-    ylabel('$u_\theta (r,z,t)$')
-    legend('$z=1$','$z=0$')
-    title(sprintf(['boundary signals of $u_\\theta$ at $Ha =%4.2f \\times 10^%i$,\n',...
-        '$R_\\eta = %4.2f$, $R_\\nu =%4.2f \\times 10^%i$, and $r = %4.2f$'],mantisse_Ha,exp_Ha,...
-        double(Reta),mantisse_Rnu,exp_Rnu,double(r_investigation)))
-    ax= gca;
-    Cfig.Children(2).TickLabelInterpreter= "latex";
-    Cfig.Children(2).FontSize= 14;
-    Cfig.Children(1).FontSize= 12;
-    Cfig.Children(1).Interpreter= "latex";
-    ax.XAxis.FontSize= 16;
-    ax.YAxis.FontSize= 16;
-    ax.XAxis.TickLabelInterpreter="latex";
-    ax.YAxis.TickLabelInterpreter="latex";
+if calculate_boundary_signal == 1
+    if calculate_U == 1
+        Cfig= figure('name','boundary_signal_u_\theta');
+        plot(t,asignal_top)
+        hold on
+        plot(t,asignal_bottom)
+        xlabel('t')
+        ylabel('$u_\theta (r,z,t)$')
+        legend('$z=1$','$z=0$')
+        title(sprintf(['Boundary signals of $u_\\theta$ at $Ha =%4.2f \\times 10^%i$,\n',...
+            '$R_\\eta = %4.2f$, $R_\\nu =%4.2f \\times 10^%i$, and $r =%4.2f \\times 10^{%i}$'],mantisse_Ha,exp_Ha,...
+            double(Reta),mantisse_Rnu,exp_Rnu,mantisse_r_invest,exp_r_invest))
+        ax= gca;
+        Cfig.Children(2).TickLabelInterpreter= "latex";
+        Cfig.Children(2).FontSize= 12;
+        Cfig.Children(1).FontSize= 12;
+        Cfig.Children(1).Interpreter= "latex";
+        ax.XAxis.FontSize= 16;
+        ax.YAxis.FontSize= 16;
+        ax.XAxis.TickLabelInterpreter="latex";
+        ax.YAxis.TickLabelInterpreter="latex";
+    end
+    if calculate_B == 1
+        Cfig= figure('name','boundary_signal_b_theta');
+        plot(t,bsignal_top)
+        hold on
+        plot(t,bsignal_bottom)
+        xlabel('t')
+        ylabel('$b_\theta (r,z,t)$')
+        legend('$z=1$','$z=0$')
+        title(sprintf(['Boundary signals of $b_\\theta$ at $Ha =%4.2f \\times 10^%i$,\n',...
+            '$R_\\eta = %4.2f$, $R_\\nu =%4.2f \\times 10^%i$, and $r =%4.2f \\times 10^{%i}$'],mantisse_Ha,exp_Ha,...
+            double(Reta),mantisse_Rnu,exp_Rnu,mantisse_r_invest,exp_r_invest))
+        ax= gca;
+        Cfig.Children(2).TickLabelInterpreter= "latex";
+        Cfig.Children(2).FontSize= 12;
+        Cfig.Children(1).FontSize= 12;
+        Cfig.Children(1).Interpreter= "latex";
+        ax.XAxis.FontSize= 16;
+        ax.YAxis.FontSize= 16;
+        ax.XAxis.TickLabelInterpreter="latex";
+        ax.YAxis.TickLabelInterpreter="latex";
+    end
+    if calculate_V == 1
+        Cfig= figure('name','boundary_signal_grad_r phi');
+        plot(t,vsignal_top)
+        hold on
+        plot(t,vsignal_bottom)
+        xlabel('t')
+        ylabel('$\partial_r \phi(r,z,t)$')
+        legend('$z=1$','$z=0$')
+        title(sprintf(['Boundary signals of $\\partial_r \\phi$ at $Ha =%4.2f \\times 10^%i$,\n',...
+            '$R_\\eta = %4.2f$, $R_\\nu =%4.2f \\times 10^%i$, and $r =%4.2f \\times 10^{%i}$'],mantisse_Ha,exp_Ha,...
+            double(Reta),mantisse_Rnu,exp_Rnu,mantisse_r_invest,exp_r_invest))
+        ax= gca;
+        Cfig.Children(2).TickLabelInterpreter= "latex";
+        Cfig.Children(2).FontSize= 12;
+        Cfig.Children(1).FontSize= 12;
+        Cfig.Children(1).Interpreter= "latex";
+        ax.XAxis.FontSize= 16;
+        ax.YAxis.FontSize= 16;
+        ax.XAxis.TickLabelInterpreter="latex";
+        ax.YAxis.TickLabelInterpreter="latex";
+    end
+    if calculate_E == 1
+    
+        Cfig= figure('name','boundary_signal_E_r');
+        plot(t,esignal_top)
+        hold on
+        plot(t,esignal_bottom)
+        xlabel('t')
+        ylabel('$E_r(r,z,t)$')
+        legend('$z=1$','$z=0$')
+        title(sprintf(['Boundary signals of $E_r$ at $Ha =%4.2f \\times 10^%i$,\n',...
+            '$R_\\eta = %4.2f$, $R_\\nu =%4.2f \\times 10^%i$, and $r =%4.2f \\times 10^{%i}$'],mantisse_Ha,exp_Ha,...
+            double(Reta),mantisse_Rnu,exp_Rnu,mantisse_r_invest,exp_r_invest))
+        ax= gca;
+        Cfig.Children(2).TickLabelInterpreter= "latex";
+        Cfig.Children(2).FontSize= 12;
+        Cfig.Children(1).FontSize= 12;
+        Cfig.Children(1).Interpreter= "latex";
+        ax.XAxis.FontSize= 16;
+        ax.YAxis.FontSize= 16;
+        ax.XAxis.TickLabelInterpreter="latex";
+        ax.YAxis.TickLabelInterpreter="latex";
+    end
+    if calculate_J == 1
+        Cfig= figure('name','boundary_signal_j_r');
+        plot(t,jsignal_top)
+        hold on
+        plot(t,jsignal_bottom)
+        xlabel('t')
+        ylabel('$j(r,z,t)$')
+        legend('$z=1$','$z=0$')
+        title(sprintf(['Boundary signal of $j_r$ at $Ha =%4.2f \\times 10^%i$,\n',...
+            '$R_\\eta = %4.2f$, $R_\\nu =%4.2f \\times 10^%i$, and $r =%4.2f \\times 10^{%i}$'],mantisse_Ha,exp_Ha,...
+            double(Reta),mantisse_Rnu,exp_Rnu,mantisse_r_invest,exp_r_invest))
+        ax= gca;
+        Cfig.Children(2).TickLabelInterpreter= "latex";
+        Cfig.Children(2).FontSize= 12;
+        Cfig.Children(1).FontSize= 12;
+        Cfig.Children(1).Interpreter= "latex";
+        ax.XAxis.FontSize= 16;
+        ax.YAxis.FontSize= 16;
+        ax.XAxis.TickLabelInterpreter="latex";
+        ax.YAxis.TickLabelInterpreter="latex";
+    end
 end
-if calculate_B == 1
-    Cfig= figure('name','boundary_signal_b_theta');
-    plot(t,bsignal_top)
-    hold on
-    plot(t,bsignal_bottom)
-    xlabel('t')
-    ylabel('$b_\theta (r,z,t)$')
-    legend('$z=1$','$z=0$')
-    title(sprintf(['boundary signals of $b_\theta$ at $Ha =%4.2f \\times 10^%i$,\n',...
-        '$R_\\eta = %4.2f$, $R_\\nu =%4.2f \\times 10^%i$, and $r = %4.2f$'],mantisse_Ha,exp_Ha,...
-        double(Reta),mantisse_Rnu,exp_Rnu,double(r_investigation)))
-    ax= gca;
-    Cfig.Children(2).TickLabelInterpreter= "latex";
-    Cfig.Children(2).FontSize= 14;
-    Cfig.Children(1).FontSize= 12;
-    Cfig.Children(1).Interpreter= "latex";
-    ax.XAxis.FontSize= 16;
-    ax.YAxis.FontSize= 16;
-    ax.XAxis.TickLabelInterpreter="latex";
-    ax.YAxis.TickLabelInterpreter="latex";
-end
-if calculate_V == 1
-    Cfig= figure('name','boundary_signal_grad_r phi');
-    plot(t,vsignal_top)
-    hold on
-    plot(t,vsignal_bottom)
-    xlabel('t')
-    ylabel('$\partial_r \phi(r,z,t)$')
-    legend('$z=1$','$z=0$')
-    title(sprintf(['boundary signals of $\\partial_r \\phi$ at $Ha =%4.2f \\times 10^%i$,\n',...
-        '$R_\\eta = %4.2f$, $R_\\nu =%4.2f \\times 10^%i$, and $r = %4.2f$'],mantisse_Ha,exp_Ha,...
-        double(Reta),mantisse_Rnu,exp_Rnu,double(r_investigation)))
-    ax= gca;
-    Cfig.Children(2).TickLabelInterpreter= "latex";
-    Cfig.Children(2).FontSize= 14;
-    Cfig.Children(1).FontSize= 12;
-    Cfig.Children(1).Interpreter= "latex";
-    ax.XAxis.FontSize= 16;
-    ax.YAxis.FontSize= 16;
-    ax.XAxis.TickLabelInterpreter="latex";
-    ax.YAxis.TickLabelInterpreter="latex";
-end
-if calculate_E == 1
-
-    Cfig= figure('name','boundary_signal_E_r');
-    plot(t,esignal_top)
-    hold on
-    plot(t,esignal_bottom)
-    xlabel('t')
-    ylabel('$E_r(r,z,t)$')
-    legend('$z=1$','$z=0$')
-    title(sprintf(['boundary signals of $E_r$ at $Ha =%4.2f \\times 10^%i$,\n',...
-        '$R_\\eta = %4.2f$, $R_\\nu =%4.2f \\times 10^%i$, and $r = %4.2f$'],mantisse_Ha,exp_Ha,...
-        double(Reta),mantisse_Rnu,exp_Rnu,double(r_investigation)))
-    ax= gca;
-    Cfig.Children(2).TickLabelInterpreter= "latex";
-    Cfig.Children(2).FontSize= 14;
-    Cfig.Children(1).FontSize= 12;
-    Cfig.Children(1).Interpreter= "latex";
-    ax.XAxis.FontSize= 16;
-    ax.YAxis.FontSize= 16;
-    ax.XAxis.TickLabelInterpreter="latex";
-    ax.YAxis.TickLabelInterpreter="latex";
-end
-if calculate_J == 1
-    Cfig= figure('name','boundary_signal_j_r');
-    plot(t,jsignal_top)
-    hold on
-    plot(t,jsignal_bottom)
-    xlabel('t')
-    ylabel('$j(r,z,t)$')
-    legend('$z=1$','$z=0$')
-    title(sprintf(['boundary signal of $j_r$ at $Ha =%4.2f \\times 10^%i$,\n',...
-        '$R_\\eta = %4.2f$, $R_\\nu =%4.2f \\times 10^%i$, and $r = %4.2f$'],mantisse_Ha,exp_Ha,...
-        double(Reta),mantisse_Rnu,exp_Rnu,double(r_investigation)))
-    ax= gca;
-    Cfig.Children(2).TickLabelInterpreter= "latex";
-    Cfig.Children(2).FontSize= 14;
-    Cfig.Children(1).FontSize= 12;
-    Cfig.Children(1).Interpreter= "latex";
-    ax.XAxis.FontSize= 16;
-    ax.YAxis.FontSize= 16;
-    ax.XAxis.TickLabelInterpreter="latex";
-    ax.YAxis.TickLabelInterpreter="latex";
-end
-
  
-%%  calculation time evolution along z
 
+%%  calculation time evolution along z
+nb_clted_variable= calculate_U + calculate_B + calculate_J + calculate_E + calculate_V;
 if calculate_time_evolution_along_z == 1
     time=[0:0.2*2*vpa(pi)/epsilon_inf:2*vpa(pi)/(epsilon_inf)];
     length(time)
     
     i=1
+    length(time)
     asignal= [];
     vsignal= [];
     bsignal= [];
     jsignal= [];
     esignal= [];
     phisignal= [];
+       
     for t = time
-
+        
         if calculate_U == 1
             % champ vitesse
             asignal_inf= calcul_signal_along_z(A_less,s1_less,k1_less,...
@@ -1088,121 +1100,127 @@ if calculate_time_evolution_along_z == 1
            disp('fin Er')
         end
     
-    % 
-                
-    
-    
-    % 
-               
-    
-               
-    %phisignal_inf= calcul_signal_along_z(Phi_less,s1_less,k1_less,...
-    %               s2_less,k2_less,epsilon_inf,z,t,precision,0);                
-    % j_ohm_signal_inf= calcul_signal_along_z(J_ohm_less,s1_less,k1_less,...
-    %                s2_less,k2_less,epsilon_inf,z,t,precision,0);
-    
-    
+   
     i= i+1
     end
 end
-
+%% figure which show the time evolution
 %
 % 
-% set(0,'defaultTextInterpreter','latex')
-% opengl software
-% fig_evolution_suivant_z= figure;
-% 
-% 
-% 
-% for i = [1:1:length(time)]
-% % subplot(1,5,1)
-% % plot(venv,z,'r',-venv,z,'r')
-% % hold on
-% % plot(vsignal(i,:),z,'k');
-% % hold off
-% % title('Electric potential')
-% % xlabel('$V/B_0\eta$')
-% % ylabel('$z (\omega/\eta)^{1/2}$')
-% 
-% subplot(1,3,2)
-% plot(aenv,z,'r',-aenv,z,'r')
-% hold on
-% plot(asignal(i,:),z,'k');
-% hold off
-% title(sprintf('velocity field'))
-% xlabel('$u/u_0$')
-% ylabel('$z/L_{carac}$')
-% 
-% subplot(1,3,3)
-% plot(eenv,z,'r',-eenv,z,'r')
-% hold on
-% plot(esignal(i,:),z,'k');
-% hold off
-% title('electric field')
-% xlabel('$E/ E_0$')
-% ylabel('$z/L_{carac}$')
-% 
-% % subplot(1,2,2)
-% % plot(venv,z,'r',-venv,z,'r')
-% % hold on
-% % plot(vsignal(i,:),z,'k');
-% % title('potential gradient')
-% % xlabel('$u/ u_0$')
-% % ylabel('$z/L_{carac}$')
-% % hold off
-% 
-% subplot(1,3,1)
-% plot(benv,z,'r',-benv,z,'r')
-% hold on
-% plot(bsignal(i,:),z,'k');
-% hold off
-% title('magnetic field')
-% xlabel('$b/ b_0$')
-% ylabel('$z/L_{carac}$')
-% % % 
-% % subplot(1,5,4)
-% % plot(jenv(2:end-1),z(2:end-1),'r',-jenv(2:end-1),z(2:end-1),'r')
-% % hold on
-% % % plot(jsignal(i,2:end-1),z(2:end-1),'k');
-% % hold off
-% % title(sprintf('electric current'))
-% % xlabel('$j/ j_0$')
-% % ylabel('$z/L_{carac}$')
-% % 
-% % 
-% % subplot(1,4,4)
-% % plot(eenv,z,'r',-eenv,z,'r')
-% % hold on
-% % plot(esignal(i,:),z,'k');
-% % hold off
-% % title('electric potental')
-% % xlabel('$E/ E_0$')
-% % ylabel('$z/L_{carac}$')
-% 
-% 
-% 
-% 
-% sgtitle(sprintf('Enveloppe of different parameters, \n simple bottom forcing'))
-% pause(0.5)
-% video_struc(i)= getframe(fig_evolution_suivant_z);
-% i
-% hold off
-% 
-% 
-% 
-% end
-% %% sauvegarde video
-% 
-%     for i=1:length(video_struc)
-%         video_struc_bis(i)= video_struc(i);
-%         i
-%     end
-%     v= VideoWriter('film_evolution_signal_suivant_z_B_7T_Finf_5Hz.avi');
-%     v.FrameRate= 1;
-%     open(v)
-%     writeVideo(v,video_struc_bis)
-%     close(v)
-%     clear v
+set(0,'defaultTextInterpreter','latex')
+opengl software
+fig_evolution_suivant_z= figure;
+if exist('video_struc')
+    clear video_struc
+end
+for i = 1:length(time)
+    k= 1;
+    if calculate_U == 1
+        s_ax= subplot(1,nb_clted_variable,k);
+        plot(aenv,z,'r',-aenv,z,'r')
+        hold on
+        plot(asignal(i,:),z,'k');
+        hold off
+        title(sprintf('$u_\\theta(r,z,t)$'))
+        xlabel('$u_\theta$')
+        ylabel('$z$')
+        s_ax.FontSize= 10;
+        s_ax.TickLabelInterpreter= "latex";
+        s_ax.XLabel.FontSize= 10;
+        s_ax.YLabel.FontSize= 10;
+        s_ax.Title.FontSize= 12;
+        k= k+1;
+    end
+    if calculate_B == 1
+        s_ax= subplot(1,nb_clted_variable,k);
+        plot(benv,z,'r',-benv,z,'r')
+        hold on
+        plot(bsignal(i,:),z,'k');
+        hold off
+        title(sprintf('$b_\\theta (r,z,t)$'))
+        xlabel('$b_\theta$')
+        ylabel('$z$')
+        s_ax.FontSize= 10;
+        s_ax.TickLabelInterpreter= "latex";
+        s_ax.XLabel.FontSize= 10;
+        s_ax.YLabel.FontSize= 10;
+        s_ax.Title.FontSize= 12;
+        k= k+1;
+    end
+    if calculate_E == 1
+        s_ax= subplot(1,nb_clted_variable,k);
+        plot(eenv,z,'r',-eenv,z,'r')
+        hold on
+        plot(esignal(i,:),z,'k');
+        hold off
+        title(sprintf('$E_r(r,z,t)$'))
+        xlabel('$E_r$')
+        ylabel('$z$')
+        s_ax.FontSize= 10;
+        s_ax.TickLabelInterpreter= "latex";
+        s_ax.XLabel.FontSize= 10;
+        s_ax.YLabel.FontSize= 10;
+        s_ax.Title.FontSize= 12;
+        k= k+1;
+    end
+    if calculate_V == 1
+        s_ax= subplot(1,nb_clted_variable,k);
+        plot(venv,z,'r',-venv,z,'r')
+        hold on
+        plot(vsignal(i,:),z,'k');
+        hold off
+        title(sprintf('$\\partial_r \\phi(r,z,t)$'))
+        xlabel('$\partial_r \phi$')
+        ylabel('$z$')
+        s_ax.FontSize= 10;
+        s_ax.TickLabelInterpreter= "latex";
+        s_ax.XLabel.FontSize= 10;
+        s_ax.YLabel.FontSize= 10;
+        s_ax.Title.FontSize= 12;
+        k= k+1;
+    end
+    if calculate_J == 1      
+        s_ax= subplot(1,nb_clted_variable,k);
+        plot(jenv,z,'r',-jenv,z,'r')
+        hold on
+        plot(jsignal(i,:),z,'k');
+        hold off
+        title(sprintf('$j_r(r,z,t)$'))
+        xlabel('$j_r$')
+        ylabel('$z$')
+        hold off
+        s_ax.FontSize= 10;
+        s_ax.TickLabelInterpreter= "latex";
+        s_ax.XLabel.FontSize= 10;
+        s_ax.YLabel.FontSize= 10;
+        s_ax.Title.FontSize= 12;
+        k= k+1;
+    end
 
+sgtitle(sprintf(['Enveloppe of different parameters, at $Ha =%4.2f \\times 10^%i$,\n',...
+        '$R_\\eta = %4.2f$, $R_\\nu =%4.2f \\times 10^%i$, and $r = %4.2f \\times 10^{%i}$'],...
+        mantisse_Ha,exp_Ha, double(Reta),mantisse_Rnu,exp_Rnu,mantisse_r_invest,exp_r_invest))
+pause(0.5)
+i
+video_struc(i)= getframe(fig_evolution_suivant_z);
+hold off
+end
 
+%% sauvegarde video
+if save_video_time_evol_along_z == 1
+    video_struc_bis= struct;
+    disp('Choose the sought folder to save figure: ')
+    selpath = uigetdir(pwd);
+    for i=1:length(video_struc)
+        video_struc_bis(i)= video_struc(i);
+        i
+    end
+    v= VideoWriter('film_evolution_signal_suivant_z.avi');
+    v.FrameRate= 1;
+    open(v)
+    writeVideo(v,video_struc_bis)
+    close(v)
+    clear v
+
+end
 

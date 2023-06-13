@@ -23,7 +23,7 @@ clc
 %%%%
 %% toolbox flottant haute précision
 %addpath('C:\Users\lalloz\Documents\Multiprecision Computing Toolbox')
-precision=12*32;% Setup default precision to 40 decimal digits (quadruple).
+precision=10*32;% Setup default precision to 40 decimal digits (quadruple).
 digits(precision);  
 
 set(0,'defaultTextInterpreter','latex')
@@ -68,6 +68,11 @@ addpath(fullfile(path_com_function(1).folder,'\'));
 
 %% Paramètre du problème
 syms mu_0 sigma_gal visco_gal rho_gal omega_0 B0 h I0 kt_max epsilon
+
+%initialisation grandeur exp
+B0= [];%champ magnetique uniforme en Tesla
+
+
 %Paramètres physiques
 mu_0= vpa(1.25*sym(1e-6));
 sigma_gal= vpa(3.46*sym(1e6));
@@ -77,7 +82,9 @@ rho_gal= vpa(6440);% masse volumique Galinstan kg/m3
 nu_gal= visco_gal/rho_gal;
 
 % Paramètres géométriques/expérimentaux
-B0= vpa(10); %champ magnetique uniforme en Tesla
+if ~exist('B0') || isempty(B0)
+    B0= vpa(input('Write the value of the magnetic field B0 (in T):\n'));
+end
 diam_elec= 1e-3; % en mètre
 rayon_elec= diam_elec/2;
 dist_inter_elec= 20*10^-3; % en mètre
@@ -111,15 +118,13 @@ hadm=h/L_carac;
 
 
 % Paramètre tracé
-Rmax= hadm;%r_exp_adm;
-nr= 5*10^2;%floor(Rmax);
-nz= 100;
-
+% Rmax= hadm;%r_exp_adm;
+% nr= 5*10^2;%floor(Rmax);
 
 
 
 % Nombre adm
-Pm_num= vpa(10^3);%nu_gal/(eta); %nb de Prandtl magnétique 
+Pm_num= nu_gal/(eta); %nb de Prandtl magnétique 
 va_num= B0/sqrt(rho_gal*mu_0); %Vitesse d'Alfven 
 S_num=va_num*L_carac/eta; %Nombre de Lundquist basé sur la hauteur récipient
 Ha_num= B0*L_carac*sqrt(sigma_gal/visco_gal); %Nombre d'Hartmann basé sur la hauteur récipient
@@ -135,7 +140,7 @@ calculate_E= [];
 calculate_J= [];
 save_data= [];
 if ~exist('calculate_U') || isempty(calculate_U)
-    calculate_U=input('Do you want to calculate the velcoity field ? Yes (1), No (0) \n');
+    calculate_U=input('Do you want to calculate the velocity field ? Yes (1), No (0) \n');
 end
 if ~exist('calculate_V') || isempty(calculate_V)
     calculate_V=input('Do you want to calculate the potential gradient ? Yes (1), No (0) \n');
@@ -168,13 +173,12 @@ end
 % delta_kt= pas entre deux modes transversaux
 
 % parameters by default
-nb_point_z= 25;
-nb_kt= 100;%1200;%2500;%3200;%1000;%2100;%
+nb_kt= 1200;%2500;%3200;%1000;%2100;%
 delta_kt= 2.25;%0.5;%
-r_investigation= vpa(0.005);
+r_investigation= [];
 kt_adm= [];
 freq_min= [];
-freq_min= [];
+freq_max= [];
 nb_omega= [];
 
 if ~exist('freq_min') || isempty(freq_min)
@@ -194,7 +198,7 @@ switch cas_single_mode
     
     case 0
         if ~exist('r_investigation') || isempty(r_investigation)
-        r_investigation= input('Write the scaled location for the calculation: \n');
+        r_investigation= vpa(input('Write the scaled location for the calculation: \n'));
         end
         if ~exist('nb_kt') || isempty(nb_kt)
         nb_kt= input('Write the number of transverse mode to test: \n');
@@ -246,7 +250,7 @@ omega_min= vpa(2*vpa(pi)*freq_min);
 omega_max= vpa(2*vpa(pi)*freq_max);
 omega_vect= linspace(omega_min,omega_max,nb_omega);
 freq_vect= 1/(2*vpa(pi))* omega_vect;
-epsilon_vect= tau*omega_vect;
+epsilon_vect= tau_eta*omega_vect;
 
 %%% New control parameter
 Rnu_fixed= 0;
@@ -387,8 +391,11 @@ end
 
 %% frequence (in the case if omega and epsilon have not been saved
 
-mantisse_Ha= Ha_num/10^(floor(log10(Ha_num)));
-exp_Ha= floor(log10(Ha_num));
+mantisse_Ha= double(Ha_num/10^(floor(log10(Ha_num))));
+exp_Ha= double(floor(log10(Ha_num)));
+mantisse_r_invest= double(r_investigation/10^(floor(log10(r_investigation))));
+exp_r_invest= double(floor(log10(r_investigation)));
+
 choice_freq= 'freq_adm_Fav'; % write either 'Reta' or 'freq', freq_adm_Fav
 switch choice_freq
     case 'Reta'
@@ -422,6 +429,7 @@ label_j_tle_grad= '$j_r$';
 
 %% calculation attenuation coefficient and phase shift at the boundaries
 i_lim= length(freq_vect);
+
 if calculate_E
     E_max_top= E_env(:,end);  
     E_max_bot= E_env(:,1); 
@@ -435,7 +443,7 @@ end
 if calculate_V
     gradV_max_top= gradV_env(:,end); 
     gradV_max_bot= gradV_env(:,1);
-    gradV_att_coef= log(E_max_top/gradV_max_bot); 
+    gradV_att_coef= log(gradV_max_top/gradV_max_bot); 
     gradV_phase_top= unwrap(gradV_phase(:,end)); %unwrap
     gradV_phase_bot= gradV_phase(:,1); 
     gradV_phase_top=mk_same_congruence_phase_shift(gradV_phase_top);
@@ -468,8 +476,7 @@ end
 %% save
 if save_data == 1
     disp('choose the folder to save data')
-    selpath = uigetdir(['C:\Users\lalloz\Documents\these\onde alfven\etude theorique numerique',...
-        '\1_electrode_model_results\one plate forcing case\freq_sweeping']);
+    selpath = uigetdir(pwd);
     save([selpath,'\donnees.mat'],'Bb_ri','gradV_env','gradV_phase','Freq_Alfven',...
         'Ha_num','R','S_num','freq_vect','freq_max','freq_min','va_num',...
     'E_env','E_phase','kt_adm','kt_max','delta_kt','nb_kt','r_investigation','sigma_r')  
@@ -478,28 +485,30 @@ end
     
 %% Figure bot & top gradV amplitude vs frequency
 if calculate_V == 1
-    figure
+
+    figure('name','Grad_r phi amplitude versus freq')
     plot(xvect,gradV_max_bot)
     hold on
     plot(xvect,gradV_max_top)
-    ylabel(sprintf('$|\\partial\\phi(r,z)|$ '))
+    ylabel(sprintf('$|\\partial_r\\phi(r,z)|$ '))
     xlabel(label_x)
     ax= gca;
     ax.TickLabelInterpreter="latex";
     grid on 
     l_fig= legend('$z = 0$','$z = 1$','Interpreter','Latex');
     title(sprintf(['Potentiel gradient amplitude versus %s \n'...
-        ' ($Ha= %4.1f \\times 10^%i, r= %4.2f$)'],label_tle,mantisse_Ha,exp_Ha,double(r_investigation))) 
+        '($Ha= %4.1f \\times 10^%i, r= %4.1f \\times 10^%i$)'],label_tle,mantisse_Ha,exp_Ha,mantisse_r_invest,exp_r_invest)) 
     set(gca, 'YScale', 'log')
     f_ampl_ax= gca;
     f_ampl_ax.TickLabelInterpreter= 'latex';
-    f_ampl_ax.FontSize= 10;
+    f_ampl_ax.FontSize= 12;
     f_ampl_ax.YLabel.FontSize = 14;
     f_ampl_ax.XLabel.FontSize = 14;
+    f_ampl_ax.Title.FontSize = 14;
     l_fig.FontSize= 12;
     
     % Figure spatial attenuation coefficient
-    figure('name','attenuation coef GradV versus freq')
+    figure('name','attenuation coef Grad_r phi versus freq')
     %yyaxis left
     plot(xvect,gradV_att_coef)
     hold on
@@ -507,60 +516,196 @@ if calculate_V == 1
     ylabel(sprintf('$\\alpha\\left(r = %4.1f, z= 1\\right)$',r_investigation))
     l_fig= legend(sprintf('$Ha= %4.2e$',Ha_num),'interpreter','latex');
     title(sprintf(['Spatial attenuation coefficient of %s versus %s\n'...
-    ' ($Ha= %4.1f \\times 10^%i$, $r= %4.2f$)'],label_gradV_tle_grad,label_tle,...
-    mantisse_Ha,exp_Ha,double(r_investigation)))
-    %txt= sprintf('$ \\nabla\\phi_0 = %4.2e \\,V/m $',E0);
-    %t= text(700,0.4,txt);
-    %t.Units= 'normalized';
+    '($Ha= %4.1f \\times 10^%i, r= %4.1f \\times 10^%i$)'],label_gradV_tle_grad,label_tle,...
+    mantisse_Ha,exp_Ha,mantisse_r_invest,exp_r_invest)) 
     f_att_coef_ax= gca;
     f_att_coef_ax.TickLabelInterpreter= 'latex';
-    f_att_coef_ax.FontSize= 10;
+    f_att_coef_ax.FontSize= 12;
     f_att_coef_ax.YLabel.FontSize = 14;
     f_att_coef_ax.XLabel.FontSize = 14;
+    f_att_coef_ax.Title.FontSize= 14;
     l_fig.FontSize= 12;
     
     grid on
     
     % Figure phase shift versus Freq
-    f_phase_shift_ax= figure('name','phase shift versus freq');
+    figure('name','phase shift of grad_r phi versus freq');
     %yyaxis left
     plot(xvect,gradV_dephasage)
     hold on
     xlabel(label_x)
-    ylabel(sprintf('$\\varphi_{\Delta}\\left(r = %4.1f, z= 1\\right)$',r_investigation))
+    ylabel(sprintf('$\\varphi_{\\Delta}\\left(r = %4.1f, z= 1\\right)$',r_investigation))
     l_fig= legend(sprintf('$Ha= %4.2e$',Ha_num),'interpreter','latex');
     title(sprintf(['Phase shift of %s versus %s\n'...
-    ' ($Ha= %4.1f \\times 10^%i, r= %4.2f$)'],label_gradV_tle_grad,label_tle,...
-    mantisse_Ha,exp_Ha,double(r_investigation))) 
+    '($Ha= %4.1f \\times 10^%i, r= %4.1f \\times 10^%i$)'],label_gradV_tle_grad,label_tle,...
+    mantisse_Ha,exp_Ha,mantisse_r_invest,exp_r_invest)) 
+    f_phase_shift_ax= gca;
     f_phase_shift_ax.TickLabelInterpreter= 'latex';
     f_phase_shift_ax.FontSize= 12;
     f_phase_shift_ax.YLabel.FontSize = 14;
     f_phase_shift_ax.XLabel.FontSize = 14;
+    f_phase_shift_ax.Title.FontSize= 14;
     l_fig.FontSize= 12;
     grid on
 
 end
+
+if calculate_E == 1
+    
+    % Figure of amplitude of Er vs freq
+    figure('name','Er amplitude versus freq')
+    plot(xvect,E_max_bot)
+    hold on
+    plot(xvect,E_max_top)
+    ylabel(sprintf('$|E_r(r,z)|$ '))
+    xlabel(label_x)
+    ax= gca;
+    ax.TickLabelInterpreter="latex";
+    grid on 
+    l_fig= legend('$z = 0$','$z = 1$','Interpreter','Latex');
+    title(sprintf(['$E_r$ amplitude versus %s \n'...
+       '($Ha= %4.1f \\times 10^%i, r= %4.1f \\times 10^%i$)'],label_tle,mantisse_Ha,...
+       exp_Ha,mantisse_r_invest,exp_r_invest)) 
+    set(gca, 'YScale', 'log')
+    f_ampl_ax= gca;
+    f_ampl_ax.TickLabelInterpreter= 'latex';
+    f_ampl_ax.FontSize= 12;
+    f_ampl_ax.YLabel.FontSize = 14;
+    f_ampl_ax.XLabel.FontSize = 14;
+    f_ampl.Title.FontSize= 14;
+    l_fig.FontSize= 12;
+    
+    % Figure spatial attenuation coefficient
+    figure('name','attenuation coef Er versus freq')
+    %yyaxis left
+    plot(xvect,E_att_coef)
+    hold on
+    xlabel(label_x)
+    ylabel(sprintf('$\\alpha\\left(r = %4.1f, z= 1\\right)$',r_investigation))
+    l_fig= legend(sprintf('$Ha= %4.2e$',Ha_num),'interpreter','latex');
+    title(sprintf(['Spatial attenuation coefficient of %s versus %s\n'...
+    '($Ha= %4.1f \\times 10^%i, r= %4.1f \\times 10^%i$)'],label_E_tle_grad,label_tle,...
+    mantisse_Ha,exp_Ha,mantisse_r_invest,exp_r_invest)) 
+    f_att_coef_ax= gca;
+    f_att_coef_ax.TickLabelInterpreter= 'latex';
+    f_att_coef_ax.FontSize= 12;
+    f_att_coef_ax.YLabel.FontSize = 14;
+    f_att_coef_ax.XLabel.FontSize = 14;
+    f_att_coef_ax.Title.FontSize= 14;
+    l_fig.FontSize= 12;
+    grid on
+    
+    % Figure phase shift versus Freq
+    figure('name','phase shift versus freq');
+    %yyaxis left
+    plot(xvect,E_dephasage)
+    hold on
+    xlabel(label_x)
+    ylabel(sprintf('$\\varphi_{\\Delta}\\left(r = %4.1f, z= 1\\right)$',r_investigation))
+    l_fig= legend(sprintf('$Ha= %4.2e$',Ha_num),'interpreter','latex');
+    title(sprintf(['Phase shift of %s versus %s\n'...
+    '($Ha= %4.1f \\times 10^%i, r= %4.1f \\times 10^%i$)'],label_E_tle_grad,label_tle,...
+    mantisse_Ha,exp_Ha,mantisse_r_invest,exp_r_invest)) 
+    f_phase_shift_ax= gca;
+    f_phase_shift_ax.TickLabelInterpreter= 'latex';
+    f_phase_shift_ax.FontSize= 12;
+    f_phase_shift_ax.YLabel.FontSize = 14;
+    f_phase_shift_ax.XLabel.FontSize = 14;
+    f_phase_shift_ax.Title.FontSize= 14;
+    l_fig.FontSize= 12;
+    grid on
+
+end
+
+if calculate_J == 1
+    
+    % Figure of amplitude of Jr vs freq
+    figure('name','Jr amplitude versus freq')
+    plot(xvect,J_max_bot)
+    hold on
+    plot(xvect,J_max_top)
+    ylabel(sprintf('$|j_r(r,z)|$ '))
+    xlabel(label_x)
+    ax= gca;
+    ax.TickLabelInterpreter="latex";
+    grid on 
+    l_fig= legend('$z = 0$','$z = 1$','Interpreter','Latex');
+    title(sprintf(['$j_r$ amplitude versus %s \n'...
+        '($Ha= %4.1f \\times 10^%i, r= %4.1f \\times 10^%i$)'],label_tle,mantisse_Ha,...
+        exp_Ha,mantisse_r_invest,exp_r_invest)) 
+    set(gca, 'YScale', 'log')
+    f_ampl_ax= gca;
+    f_ampl_ax.TickLabelInterpreter= 'latex';
+    f_ampl_ax.FontSize= 12;
+    f_ampl_ax.YLabel.FontSize = 14;
+    f_ampl_ax.XLabel.FontSize = 14;
+    f_ampl_ax.Title.FontSize= 14;
+    l_fig.FontSize= 12;
+    
+    % Figure spatial attenuation coefficient
+    figure('name','attenuation coef jr versus freq')
+    %yyaxis left
+    plot(xvect,J_att_coef)
+    hold on
+    xlabel(label_x)
+    ylabel(sprintf('$\\alpha\\left(r = %4.1f, z= 1\\right)$',r_investigation))
+    l_fig= legend(sprintf('$Ha= %4.2e$',Ha_num),'interpreter','latex');
+    title(sprintf(['Spatial attenuation coefficient of %s versus %s\n'...
+    '($Ha= %4.1f \\times 10^%i, r= %4.1f \\times 10^%i$)'],label_j_tle_grad,label_tle,...
+    mantisse_Ha,exp_Ha,mantisse_r_invest,exp_r_invest)) 
+    f_att_coef_ax= gca;
+    f_att_coef_ax.TickLabelInterpreter= 'latex';
+    f_att_coef_ax.FontSize= 12;
+    f_att_coef_ax.YLabel.FontSize = 14;
+    f_att_coef_ax.XLabel.FontSize = 14;
+    f_att_coef_ax.Title.FontSize= 14;
+    l_fig.FontSize= 12;
+    grid on
+    
+    % Figure phase shift versus Freq
+    figure('name','phase shift versus freq');
+    %yyaxis left
+    plot(xvect,J_dephasage)
+    hold on
+    xlabel(label_x)
+    ylabel(sprintf('$\\varphi_{\\Delta}\\left(r = %4.1f, z= 1\\right)$',r_investigation))
+    l_fig= legend(sprintf('$Ha= %4.2e$',Ha_num),'interpreter','latex');
+    title(sprintf(['Phase shift of %s versus %s\n'...
+    '($Ha= %4.1f \\times 10^%i, r= %4.1f \\times 10^%i$)'],label_j_tle_grad,label_tle,...
+    mantisse_Ha,exp_Ha,mantisse_r_invest,exp_r_invest)) 
+    f_phase_shift_ax= gca;
+    f_phase_shift_ax.TickLabelInterpreter= 'latex';
+    f_phase_shift_ax.FontSize= 12;
+    f_phase_shift_ax.YLabel.FontSize = 14;
+    f_phase_shift_ax.XLabel.FontSize = 14;
+    f_phase_shift_ax.Title.FontSize= 14;
+    l_fig.FontSize= 12;
+    grid on
+
+end
+
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
 % A finir pour les autres paramètres %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%% Figure transit time scaled with the alfven time coefficient
-figure
-%yyaxis left
-plot(freq_vect*TwoD_time,gradV_time_delay*Freq_Alfven)%/Freq_Alfven
-hold on
-xlabel('$\mathit{\Omega}/\left(2\pi \right)$')
-ylabel('$\tau_{\nabla\phi}/\tau_A$')
-title(sprintf(['scaled transit time for the potential gradient\n'...
-' ($S= %4.1f, r= %4.2f$)'],double(S_num),double(r_investigation)))
-%txt= sprintf('$ \\nabla\\phi_0 = %4.2e \\,V/m $',E0);
-%t= text(700,0.4,txt);
-%t.Units= 'normalized';
-f_transit_time_ax= gca;
-f_transit_time_ax.TickLabelInterpreter= 'latex';
-f_transit_time_ax.FontSize= 10;
-f_transit_time_ax.YLabel.FontSize = 15;
-f_transit_time_ax.XLabel.FontSize = 12;
-grid on
-
+% %% Figure transit time scaled with the alfven time coefficient
+% figure
+% %yyaxis left
+% plot(freq_vect*TwoD_time,gradV_time_delay*Freq_Alfven)%/Freq_Alfven
+% hold on
+% xlabel('$\mathit{\Omega}/\left(2\pi \right)$')
+% ylabel('$\tau_{\nabla\phi}/\tau_A$')
+% title(sprintf(['scaled transit time for the potential gradient\n'...
+% ' ($S= %4.1f, r= %4.2f$)'],double(S_num),double(r_investigation)))
+% %txt= sprintf('$ \\nabla\\phi_0 = %4.2e \\,V/m $',E0);
+% %t= text(700,0.4,txt);
+% %t.Units= 'normalized';
+% f_transit_time_ax= gca;
+% f_transit_time_ax.TickLabelInterpreter= 'latex';
+% f_transit_time_ax.FontSize= 10;
+% f_transit_time_ax.YLabel.FontSize = 15;
+% f_transit_time_ax.XLabel.FontSize = 12;
+% grid on
+% 
 
