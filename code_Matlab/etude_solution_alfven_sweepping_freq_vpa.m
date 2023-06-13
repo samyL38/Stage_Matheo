@@ -218,7 +218,7 @@ switch cas_single_mode
         % les modes propres transversaux
         TF_b_theta_dot_kt= ((1- 0.5*kt_adm*sigma_r*sqrt(vpa(pi)).*exp(-sigma_r^2*kt_adm.^2/8)...
            .*besseli(0.5,sigma_r^2*kt_adm.^2/8))); %adimensionné par L_carac*b0
-       Bb_ri=(kt_adm)./(pi*(J1roots.*besselj(2,J1roots)).^2).*TF_b_theta_dot_kt; 
+       Bb_ri=(kt_adm)./(vpa(pi)*(J1roots.*besselj(2,J1roots)).^2).*TF_b_theta_dot_kt; 
        %Bb_ri= 2./(R*besselj(2,J1roots)).^2 /(2*pi).*TF_b_theta_dot_kt;
 
     case 1

@@ -147,7 +147,6 @@ epsilon_inf= tau_eta*omega_inf;
 Rnu_fixed= 0;
 Reta=  tau_eta*2*vpa(pi)*frequence_forcage;
 Rnu= tau_nu*2*vpa(pi)*frequence_forcage;
-
 if Rnu_fixed == 1
     Pm_num= Reta/Rnu;
     S_num= Ha_num*sqrt(Reta/Rnu);
