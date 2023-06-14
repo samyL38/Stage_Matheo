@@ -3,24 +3,33 @@ clc
 %close all
 
 
-% Calcul des amplitudes pour le potentiel, vitesse, champ magnétique induit
-% au niveau des plaques inférieures et supérieures. Le programme utilise la
-% fonction alfven_non_homogene_vpa qui permet de résoudre la relation de
-% dispersion full MHD pour un cas non_homogène (existance d'un nombre
-% d'onde transverse k_t)
-% On considère ici que seul le courant injecté produit de la vorticité (la
-% plaque inférieure n'est pas oscillante)
 
-%L_carac est la hauteur du récipient
+% Ce programme fournit les solutions complètes pour les perturbations
+% magnetique (b) et mécanique (u) azimutales, le gradient de potentiel 
+% \partial_r phi, le champs electrique radial Er ainsi que les densités de
+% radiale et axial (resp. jr et jz) à partir des équations MHD résistives
+% linéarisées. 
+
+% Le forçage de l'onde est effectué en forçant magnetiquement l'ondes au
+% niveau de la plaque inférieure, à la pulsation omega
+
+% Ce programme fournit les solutions complètes pour les perturbations
+% magnetique (b) et mécanique (u) azimutales, le gradient de potentiel 
+% \partial_r phi, le champs electrique radial Er ainsi que les densités de
+% radiale et axial (resp. jr et jz)
 
 % Adimensionnement de :
-% - j par I0/L_carac^2
+% - jr/jz par I0/L_carac^2
 % - b par b0= mu_0*I0/(L_carac)
-% - TF_b_theta_kt par L_carac^2*b0
 % - u par u0= eta/L_carac* b0/B0
-% - tau= L_carac^2/eta;
-% - E_0= eta/L_carac * b_0
-%%%%
+% - E_0= eta/L_carac * b0
+%( - TF_b_theta_kt par L_carac^2*b0)
+
+
+% Les calculs sont effectués lors d'un balayage fréquentiel de la pulsation de
+% forcage à une distance radiale donnée. Les variable sont extraites au
+% niveau des plaques supérieure et inférieure.
+
 %% toolbox flottant haute précision
 %addpath('C:\Users\lalloz\Documents\Multiprecision Computing Toolbox')
 precision=10*32;% Setup default precision to 40 decimal digits (quadruple).
@@ -152,7 +161,7 @@ if ~exist('calculate_E') || isempty(calculate_E)
     calculate_E=input('Do you want to calculate the electric field ? Yes (1), No (0) \n');
 end
 if ~exist('calculate_J') || isempty(calculate_J)
-    calculate_J=input('Do you want to calculate the current density ? Yes (1), No (0) \n');
+    calculate_J=input('Do you want to calculate the radial current density ? Yes (1), No (0) \n');
 end
 if ~exist('save_data') || isempty(save_data)
     save_data=input(...
@@ -174,12 +183,13 @@ end
 
 % parameters by default
 nb_kt= 1200;%2500;%3200;%1000;%2100;%
-delta_kt= 2.25;%0.5;%
 r_investigation= [];
 kt_adm= [];
 freq_min= [];
 freq_max= [];
 nb_omega= [];
+R= 1.45;
+%delta_kt= 2.25;%0.5;%
 
 if ~exist('freq_min') || isempty(freq_min)
         freq_min= input('Write the minimum frequency (in Hz) to test : \n');
@@ -192,13 +202,13 @@ if ~exist('nb_omega') || isempty(nb_omega)
 end
 
 
-cas_single_mode= input('Study of a single transverse mode case ? Yes (1), No (0) \n');
+cas_single_mode= input('Do you want to study of a single transverse mode k_t ? Yes (1), No (0) \n');
 
 switch cas_single_mode
     
     case 0
         if ~exist('r_investigation') || isempty(r_investigation)
-        r_investigation= vpa(input('Write the scaled location for the calculation: \n'));
+        r_investigation= vpa(input('Write the radial distance from the electrode, scaled with the height: \n'));
         end
         if ~exist('nb_kt') || isempty(nb_kt)
         nb_kt= input('Write the number of transverse mode to test: \n');
@@ -206,12 +216,15 @@ switch cas_single_mode
         if ~exist('delta_kt') || isempty(delta_kt)
         delta_kt= input('Value of the discretisation for kt ?\n'); %1 exemple, 355   
         end
+        if ~exist('R') || isempty(R)
+            R= input('Write the radial size of the vessel (scaled with h) ?\n'); % exemple, 355   
+        end
         ordre_B= 1;
 
         % location and transverse mode vectors
         J1roots= vpa(besselzero(1,nb_kt,1)); %determine the roots of J1 in order to find the transverse mode
-        R= (J1roots(2)-J1roots(1))/delta_kt; % taille du domaine de définition du forçage magnétique
-        kt_adm= J1roots/R; %mode transversaux
+        kt_adm= J1roots/vpa(R); %mode transversaux
+        %R= (J1roots(2)-J1roots(1))/delta_kt; % taille du domaine de définition du forçage magnétique
         fprintf('Value of the domain R %4.2f \n',double(R))
 
         % Calcul des coefficients Bb_ri, projections du forcage magnetique suivant
@@ -225,14 +238,14 @@ switch cas_single_mode
         if ~exist('kt_adm') || isempty(kt_adm)
         kt_adm=  vpa(input('write the mode to study: \n'));
         end
-        type_forcing= input('Do you want to work with Bessel function/coefficent (1) or with a unit forcing (2) ?\n');
+        type_forcing= input('Do you want to work with projection coefficent (1) or with a unit forcing (2) ?\n');
         switch type_forcing
             case 2
                 Bb_ri= 1;
             case 1
-                r_investigation= input('Write the value of the scaled location: \n');
+                r_investigation= input('Write the radial distance from the electrode, scaled with the height: \n');
                 J1roots= vpa(besselzero(1,2,1)); %determine the roots of J1 in order to find the transverse mode
-                R= (J1roots(2)-J1roots(1))/kt_adm;
+                %R= (J1roots(2)-J1roots(1))/kt_adm;
                 %TF_b_theta_dot_kt= double((1- 0.5*kt_adm*sigma_r*sqrt(vpa('pi')).*exp(-sigma_r^2*kt_adm.^2/8)...
                 %    .*besseli(0.5,sigma_r^2*kt_adm.^2/8))); %adimensionné par L_carac*b0
                 %Bb_ri=double(kt_adm)/(pi*(double(J1roots(1).*besselj(2,J1roots(1)))).^2).*TF_b_theta_dot_kt; 
@@ -285,7 +298,7 @@ J_phase= [];
 for j= 1:nb_omega
 
     epsilon= epsilon_vect(j); 
-    disp('Calculating alfven wave solutions for the bottom plate forcing...')
+    disp('Start of calculation of the full MHD solution...')
     DigitsOld= digits(precision);
     [s1,k1,s2,k2,A,B,V,J,E]= alfven_non_homogene_vpa(Pm_num,S_num,hadm,...
         kt_adm(1),Bb_ri(1),epsilon,precision,'bottom'); % 0 == bottom
@@ -308,12 +321,12 @@ for j= 1:nb_omega
     end
     else
     end
-    disp('end solution searching for bottom plate forcing')
+    disp('End of calculation of the full MHD solution')
 
 if isempty(r_investigation)
 
     % diminution précision des paramètres
-    disp('diminution de la précision des paramètre')
+    disp('diminution of digit number')
     s1_less= vpa(s1,precis_b);
     k1_less= vpa(k1,precis_b);
     s2_less= vpa(s2,precis_b);
@@ -353,38 +366,38 @@ elseif   ~ isempty( r_investigation)
     %     Phi_less= vpa(V.*Fr_phi,precis_b);
     %  
 end
-   disp('fin diminution précision')    
+   disp('end diminution of digit number')    
    j  
    fprintf('progressing %4.2f%% ..\n',j*100/nb_omega)
  
 nz= 2;
 if calculate_V == 1
-    disp('debut calcul enveloppe gradient phi')
+    disp('Start calculation envelope/phase for \partial_r\phi')
     [gradV_env_j,gradV_phase_j,z2]= amplitudes_somme_onde(V_less,s1_less,k1_less,...
              s2_less,k2_less,hadm_less,nz,precision,epsilon,sym(0)); 
     gradV_env= [gradV_env ; gradV_env_j];
     gradV_phase= [gradV_phase ; gradV_phase_j];
 
-    disp('fin calcul enveloppe grad potentiel')
+    disp('End calculation envelope/phase for \partial_r\phi')
 end
 if calculate_E
-    disp('debut calcul enveloppe electric field')
+    disp('Start calculation envelope/phase for E_r')
     [E_env_j,E_phase_j,z2]= amplitudes_somme_onde(E_less,s1_less,k1_less,...
             s2_less,k2_less,hadm_less,nz,precision,epsilon,sym(0));    
     E_env= [E_env ; E_env_j];
     E_phase= [E_phase ; E_phase_j];
-    disp('fin calcul enveloppe electric field')
+    disp('End calculation envelope/phase for E_r')
 end
 if calculate_J
-    disp('debut calcul enveloppe radial cuurent')
+    disp('Start calculation envelope/phase for j_r')
     [J_env_j,J_phase_j,z2]= amplitudes_somme_onde(J_less,s1_less,k1_less,...
             s2_less,k2_less,hadm_less,nz,precision,epsilon,sym(0));   
     J_env= [J_env ; J_env_j];
     J_phase= [J_phase ; J_phase_j];
-    disp('fin calcul enveloppe electric field')
+    disp('End calculation envelope/phase for j_r')
 end
 
-disp('fin calcul enveloppe')
+disp('End calculation envelope')
 
                     
 end
@@ -396,18 +409,25 @@ exp_Ha= double(floor(log10(Ha_num)));
 mantisse_r_invest= double(r_investigation/10^(floor(log10(r_investigation))));
 exp_r_invest= double(floor(log10(r_investigation)));
 
-choice_freq= 'freq_adm_Fav'; % write either 'Reta' or 'freq', freq_adm_Fav
+choice_freq= []; % write either 'Reta' or 'freq', freq_adm_Fav
+if ~exist('choice_freq') || isempty(choice_freq)
+    choice_freq= input(sprintf(['On what frequecy x-axis do you want to plot ?:\n',...
+        '- "R_\\eta" (1),\n- "Physical frequency" (2) in Hz,\n',...
+        '- "Frequency scaled with the Alfven frequency" (3):\n']));
+end
+
+
 switch choice_freq
-    case 'Reta'
+    case {'Reta', 1}
         xvect= double(epsilon_vect)/(2*pi);
         label_x= '$R_{\eta}/2\pi$';
         label_tle= '$R_{\eta}/2\pi$';
-    case 'freq'
+    case {'freq','Physical frequency',2 }
         xvect= freq_vect;
         label_x= '$f_{inj}$ (Hz)';
         label_tle= '$f_{inf}$';
 
-    case 'freq_adm_Fav'
+    case {'freq_adm_Fav', 'Frequency scaled with the Alfven frequency', 3}
     xvect= freq_vect/double(Freq_Alfven);
     label_x= '$\sqrt{R_\nu R_\eta}/Ha$ (Hz)';
     label_tle= '$f_{inf}/Fav$';
@@ -497,7 +517,7 @@ if calculate_V == 1
     grid on 
     l_fig= legend('$z = 0$','$z = 1$','Interpreter','Latex');
     title(sprintf(['Potentiel gradient amplitude versus %s \n'...
-        '($Ha= %4.1f \\times 10^%i, r= %4.1f \\times 10^%i$)'],label_tle,mantisse_Ha,exp_Ha,mantisse_r_invest,exp_r_invest)) 
+        '($Ha= %4.1f \\times 10^%i, r= %4.1f \\times 10^{%i}$)'],label_tle,mantisse_Ha,exp_Ha,mantisse_r_invest,exp_r_invest)) 
     set(gca, 'YScale', 'log')
     f_ampl_ax= gca;
     f_ampl_ax.TickLabelInterpreter= 'latex';
@@ -516,7 +536,7 @@ if calculate_V == 1
     ylabel(sprintf('$\\alpha\\left(r = %4.1f, z= 1\\right)$',r_investigation))
     l_fig= legend(sprintf('$Ha= %4.2e$',Ha_num),'interpreter','latex');
     title(sprintf(['Spatial attenuation coefficient of %s versus %s\n'...
-    '($Ha= %4.1f \\times 10^%i, r= %4.1f \\times 10^%i$)'],label_gradV_tle_grad,label_tle,...
+    '($Ha= %4.1f \\times 10^%i, r= %4.1f \\times 10^{%i}$)'],label_gradV_tle_grad,label_tle,...
     mantisse_Ha,exp_Ha,mantisse_r_invest,exp_r_invest)) 
     f_att_coef_ax= gca;
     f_att_coef_ax.TickLabelInterpreter= 'latex';
@@ -537,7 +557,7 @@ if calculate_V == 1
     ylabel(sprintf('$\\varphi_{\\Delta}\\left(r = %4.1f, z= 1\\right)$',r_investigation))
     l_fig= legend(sprintf('$Ha= %4.2e$',Ha_num),'interpreter','latex');
     title(sprintf(['Phase shift of %s versus %s\n'...
-    '($Ha= %4.1f \\times 10^%i, r= %4.1f \\times 10^%i$)'],label_gradV_tle_grad,label_tle,...
+    '($Ha= %4.1f \\times 10^%i, r= %4.1f \\times 10^{%i}$)'],label_gradV_tle_grad,label_tle,...
     mantisse_Ha,exp_Ha,mantisse_r_invest,exp_r_invest)) 
     f_phase_shift_ax= gca;
     f_phase_shift_ax.TickLabelInterpreter= 'latex';
@@ -564,7 +584,7 @@ if calculate_E == 1
     grid on 
     l_fig= legend('$z = 0$','$z = 1$','Interpreter','Latex');
     title(sprintf(['$E_r$ amplitude versus %s \n'...
-       '($Ha= %4.1f \\times 10^%i, r= %4.1f \\times 10^%i$)'],label_tle,mantisse_Ha,...
+       '($Ha= %4.1f \\times 10^%i, r= %4.1f \\times 10^{%i}$)'],label_tle,mantisse_Ha,...
        exp_Ha,mantisse_r_invest,exp_r_invest)) 
     set(gca, 'YScale', 'log')
     f_ampl_ax= gca;
@@ -584,7 +604,7 @@ if calculate_E == 1
     ylabel(sprintf('$\\alpha\\left(r = %4.1f, z= 1\\right)$',r_investigation))
     l_fig= legend(sprintf('$Ha= %4.2e$',Ha_num),'interpreter','latex');
     title(sprintf(['Spatial attenuation coefficient of %s versus %s\n'...
-    '($Ha= %4.1f \\times 10^%i, r= %4.1f \\times 10^%i$)'],label_E_tle_grad,label_tle,...
+    '($Ha= %4.1f \\times 10^%i, r= %4.1f \\times 10^{%i}$)'],label_E_tle_grad,label_tle,...
     mantisse_Ha,exp_Ha,mantisse_r_invest,exp_r_invest)) 
     f_att_coef_ax= gca;
     f_att_coef_ax.TickLabelInterpreter= 'latex';
@@ -604,7 +624,7 @@ if calculate_E == 1
     ylabel(sprintf('$\\varphi_{\\Delta}\\left(r = %4.1f, z= 1\\right)$',r_investigation))
     l_fig= legend(sprintf('$Ha= %4.2e$',Ha_num),'interpreter','latex');
     title(sprintf(['Phase shift of %s versus %s\n'...
-    '($Ha= %4.1f \\times 10^%i, r= %4.1f \\times 10^%i$)'],label_E_tle_grad,label_tle,...
+    '($Ha= %4.1f \\times 10^%i, r= %4.1f \\times 10^{%i}$)'],label_E_tle_grad,label_tle,...
     mantisse_Ha,exp_Ha,mantisse_r_invest,exp_r_invest)) 
     f_phase_shift_ax= gca;
     f_phase_shift_ax.TickLabelInterpreter= 'latex';
@@ -631,7 +651,7 @@ if calculate_J == 1
     grid on 
     l_fig= legend('$z = 0$','$z = 1$','Interpreter','Latex');
     title(sprintf(['$j_r$ amplitude versus %s \n'...
-        '($Ha= %4.1f \\times 10^%i, r= %4.1f \\times 10^%i$)'],label_tle,mantisse_Ha,...
+        '($Ha= %4.1f \\times 10^%i, r= %4.1f \\times 10^{%i}$)'],label_tle,mantisse_Ha,...
         exp_Ha,mantisse_r_invest,exp_r_invest)) 
     set(gca, 'YScale', 'log')
     f_ampl_ax= gca;
@@ -651,7 +671,7 @@ if calculate_J == 1
     ylabel(sprintf('$\\alpha\\left(r = %4.1f, z= 1\\right)$',r_investigation))
     l_fig= legend(sprintf('$Ha= %4.2e$',Ha_num),'interpreter','latex');
     title(sprintf(['Spatial attenuation coefficient of %s versus %s\n'...
-    '($Ha= %4.1f \\times 10^%i, r= %4.1f \\times 10^%i$)'],label_j_tle_grad,label_tle,...
+    '($Ha= %4.1f \\times 10^%i, r= %4.1f \\times 10^{%i}$)'],label_j_tle_grad,label_tle,...
     mantisse_Ha,exp_Ha,mantisse_r_invest,exp_r_invest)) 
     f_att_coef_ax= gca;
     f_att_coef_ax.TickLabelInterpreter= 'latex';
@@ -671,7 +691,7 @@ if calculate_J == 1
     ylabel(sprintf('$\\varphi_{\\Delta}\\left(r = %4.1f, z= 1\\right)$',r_investigation))
     l_fig= legend(sprintf('$Ha= %4.2e$',Ha_num),'interpreter','latex');
     title(sprintf(['Phase shift of %s versus %s\n'...
-    '($Ha= %4.1f \\times 10^%i, r= %4.1f \\times 10^%i$)'],label_j_tle_grad,label_tle,...
+    '($Ha= %4.1f \\times 10^%i, r= %4.1f \\times 10^{%i}$)'],label_j_tle_grad,label_tle,...
     mantisse_Ha,exp_Ha,mantisse_r_invest,exp_r_invest)) 
     f_phase_shift_ax= gca;
     f_phase_shift_ax.TickLabelInterpreter= 'latex';

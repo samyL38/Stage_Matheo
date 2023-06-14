@@ -3,28 +3,30 @@ clc
 %close all
 
 
-% Calcul des amplitudes pour le potentiel, vitesse, champ magnétique induit
-% au niveau des plaques inférieures et supérieures. Le programme utilise la
-% fonction alfven_non_homogene qui permet de résoudre la relation de
-% dispersion full MHD pour un cas non_homogène (existance d'un nombre
-% d'onde transverse k_t)
-% On considère ici que seul le courant injecté produit de la vorticité (la
-% plaque inférieure n'est pas oscillante)
 
-% Le forcage est produit parles deux plaques a deux frequences données
-% différentes. Néanmoins la distribution spatiale du forcage électrique est
-% le même sur la plaque supérieure que sur la plaque inférieure
+% Ce programme fournit les solutions complètes pour les perturbations
+% magnetique (b) et mécanique (u) azimutales, le gradient de potentiel 
+% \partial_r phi, le champs electrique radial Er ainsi que les densités de
+% radiale et axial (resp. jr et jz) à partir des équations MHD résistives
+% linéarisées. 
 
-%L_carac est la hauteur du récipient
+% Le forçage de l'onde est effectué en forçant magnetiquement l'ondes au
+% niveau de la plaque inférieure, à la pulsation omega
+
+% Ce programme fournit les solutions complètes pour les perturbations
+% magnetique (b) et mécanique (u) azimutales, le gradient de potentiel 
+% \partial_r phi, le champs electrique radial Er ainsi que les densités de
+% radiale et axial (resp. jr et jz)
 
 % Adimensionnement de :
-% - j par I0/L_carac^2
+% - jr/jz par I0/L_carac^2
 % - b par b0= mu_0*I0/(L_carac)
-% - TF_b_theta_kt par L_carac^2*b0
 % - u par u0= eta/L_carac* b0/B0
-% - tau= L_carac^2/eta;
-%%%%
+% - E_0= eta/L_carac * b0
+%( - TF_b_theta_kt par L_carac^2*b0)
 
+
+% Les calculs sont effectués à une pulsation et une distance radiale fixe
 %% toolbox flottant haute précision
 %addpath('C:\Users\lalloz\Documents\Multiprecision Computing Toolbox')
 precision= 8*32;% % Setup default precision to 40 decimal digits (quadruple).
@@ -134,7 +136,7 @@ Freq_Alfven= 1/Tau_Alfven;
 
 
 %%%% Controle parameter: frequency %%%%
-frequence_forcage= Freq_Alfven;% ; %en Hz %0.01*tau^-1
+frequence_forcage= [];% ; %en Hz %0.01*tau^-1
 % frequence
 if ~exist('frequence_forcage') || isempty(frequence_forcage)
     frequence_forcage= input('Write the frequency (in Hz) to test : \n');
@@ -178,7 +180,7 @@ if ~exist('calculate_E') || isempty(calculate_E)
     calculate_E=input('Do you want to calculate the electric field ? Yes (1), No (0) \n');
 end
 if ~exist('calculate_J') || isempty(calculate_J)
-    calculate_J=input('Do you want to calculate the current density ? Yes (1), No (0) \n');
+    calculate_J=input('Do you want to calculate the radial current density ? Yes (1), No (0) \n');
 end
 if ~exist('calculate_boundary_signal') || isempty(calculate_boundary_signal)
     calculate_boundary_signal=input(...
@@ -241,11 +243,12 @@ end
 %Bb_ri_bessel = B_bessel(:,i_ri);
 
 % parameters by default
-nb_point_z= 25;
-nb_kt= 1200;%2500;%3200;%1000;%2100;%
-delta_kt= 2.25;%0.5;%
+nb_point_z= [];
+nb_kt= 20;%1200;%2500;%3200;%1000;%2100;%
 r_investigation= []; %location scaled with h
 kt_adm= [];
+R= 1.45;
+%delta_kt= 2.25;%0.5;%
 
 
 
@@ -255,22 +258,25 @@ switch cas_single_mode
     
     case 0
         if ~exist('r_investigation') || isempty(r_investigation)
-        r_investigation= vpa(input('Write the scaled location for the calculation: \n'));
+            r_investigation= vpa(input('Write the radial distance from the electrode, scaled with the height: \n'));
         end
         if ~exist('nb_kt') || isempty(nb_kt)
-        nb_kt= input('Write the number of transverse mode to test: \n');
+            nb_kt= input('Write the number of transverse mode to test: \n');
         end
-        if ~exist('delta_kt') || isempty(delta_kt)
-        delta_kt= input('Value of the discretisation for kt ?\n'); %1 exemple, 355   
+        if ~exist('R') || isempty(R)
+            R= input('Write the radial size of the vessel (scaled with h) ?\n'); % exemple, 355   
         end
         if ~exist('nb_point_z') || isempty(nb_point_z)
-        nb_point_z= input('Write the number of points along the z axis'); %1 exemple, 355   
+            nb_point_z= input('Write the number of points along the z axis ?\n'); %1 exemple, 355   
         end
+%         if ~exist('delta_kt') || isempty(delta_kt)
+%             delta_kt= input('Value of the discretisation for kt ?\n'); %1 exemple, 355   
+%         end
         ordre_B= 1;
         % location and transverse mode vectors
         J1roots= vpa(besselzero(1,nb_kt,1)); %determine the roots of J1 in order to find the transverse mode
-        R= (J1roots(2)-J1roots(1))/vpa(delta_kt); % taille du domaine de définition du forçage magnétique
-        kt_adm= J1roots/R; %mode transversaux
+        %R= (J1roots(2)-J1roots(1))/vpa(delta_kt); % taille du domaine de définition du forçage magnétique
+        kt_adm= J1roots/vpa(R); %mode transversaux
         fprintf('Value of the domain R %4.2f \n',double(R))
 
         % Calcul des coefficients Bb_ri, projections du forcage magnetique suivant
@@ -288,7 +294,7 @@ switch cas_single_mode
             case 2
                 Bb_ri= 1;
             case 1
-                r_investigation= input('Write the value of the scaled location: \n');
+                r_investigation= input('Write the radial distance from the electrode, scaled with the height: \n');
                 J1roots= vpa(besselzero(1,2,1)); %determine the roots of J1 in order to find the transverse mode
                 R= (J1roots(2)-J1roots(1))/kt_adm;
                 TF_b_theta_dot_kt= (1- 0.5*sigma_r*kt_adm*sqrt(vpa(pi)).*exp(-sigma_r^2*kt_adm.^2/8)...
@@ -308,9 +314,9 @@ dephasage_mat= vpa(zeros(1,1));
 
 %% Calculation of the Full MHD solutions (Hartmann and Alfven solutions)
 
-% solution for the bottom plate
-disp('Calculating alfven wave solutions for the bottom plate forcing...')
-%DigitsOld= digits(precision);
+disp("Start of calculation of the full MHD solution")
+
+
 [s1,k1,s2,k2,A,B,V,J,E,Ar,dtAr]= alfven_non_homogene_vpa(Pm_num,S_num,hadm,...
     kt_adm(1),Bb_ri(1),epsilon_inf,precision,'bottom'); % 0 == bottom
 if length(kt_adm) > 1
@@ -332,12 +338,12 @@ parfor i =2:length(kt_adm)-1
 end
 else
 end
-disp('end solution searching for bottom plate forcing')
+disp('end solution calculation')
 
 
 
 % diminution précision des paramètres
-disp('diminution de la précision des paramètre')
+disp('diminution of digit number')
 s1_less= vpa(s1,precis_b);
 k1_less= vpa(k1,precis_b);
 s2_less= vpa(s2,precis_b);
@@ -386,7 +392,7 @@ else
     %dtAr_less= vpa(dtAr.*besselj(ordre_B,kt_adm.*r_investigation),precis_b);
     %disp('fin dtAr')
 end
-disp('fin diminution précision')
+disp('end diminution of digit number')
 
 % %%
 % 
@@ -509,7 +515,7 @@ disp('fin diminution précision')
     jphase= [];
     eenv= [];
     ephase= [];
-    disp('debut calcul enveloppe')
+    disp('Start calculation envelope')
         if length(A_less(:,1))==1
             [venv,vphase,z2]=amplitudes(V_less,s1_less,k1_less,...
                s2_less,k2_less,hadm_less,nz);
@@ -524,37 +530,42 @@ disp('fin diminution précision')
 %            [arenv,arphase,z2]=amplitudes(Ar_less,s1_less,k1_less,...
 %                s2_less,k2_less,hadm_less,nz);
 
-           disp('fin')
+           disp('End calculation envelope')
         else
             tic
             if calculate_U == 1
-                disp('debut calcul pour vitesse')
+                disp('Start calculation for u_\theta')
                 [aenv,aphase,z2]=amplitudes_somme_onde(A_less,s1_less,k1_less,...
                     s2_less,k2_less,hadm_less,nz,precision,epsilon_inf,phase_inf);
+                aphase= mk_same_congruence_phase_shift(aphase);
             end
             if calculate_V == 1
-                disp('debut calcul pour gradient potentiel')
+                disp('Start calculation for \partial_r\phi')
                 [venv,vphase,z2]=amplitudes_somme_onde(V_less,s1_less,k1_less,...
                     s2_less,k2_less,hadm_less,nz,precision,epsilon_inf,phase_inf);
+                vphase= mk_same_congruence_phase_shift(vphase);
             end
             if calculate_B == 1
-                disp('debut calcul pour champ magnetic')
+                disp('Start calculation for b_\theta')
                [benv,bphase,z2]=amplitudes_somme_onde(B_less,s1_less,k1_less,...
                    s2_less,k2_less,hadm_less,nz,precision,epsilon_inf,phase_inf);
+               bphase= mk_same_congruence_phase_shift(bphase);
             end
             if calculate_J == 1
-           disp('debut calcul pour courant')
-            [jenv,jphase,z2]=amplitudes_somme_onde(J_less,s1_less,k1_less,...
+                disp('Start calculation for j_r')
+                [jenv,jphase,z2]=amplitudes_somme_onde(J_less,s1_less,k1_less,...
                 s2_less,k2_less,hadm_less,nz,precision,epsilon_inf,phase_inf);
+                jphase= mk_same_congruence_phase_shift(jphase);
             end
             if calculate_E == 1
-                disp('debut calcul champ électrique')
+                disp('Start calculation for E_r')
                 [eenv,ephase,z2]=amplitudes_somme_onde(E_less,s1_less,k1_less,...
                     s2_less,k2_less,hadm_less,nz,precision,epsilon_inf,phase_inf);
+                ephase= mk_same_congruence_phase_shift(ephase);
             end
             toc
         end
-    disp('fin calcul enveloppe')
+    disp('End calculation envelope')
   
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Codes that were used to check parts of the previous code lines          % 
@@ -763,7 +774,7 @@ if calculate_U == 1
     ax1= gca;
     subplot(1,2,2)
     plot(aphase,z)
-    xlabel('$\varphi_\Delta u_\theta$')
+    xlabel('$\varphi u_\theta$')
     ylabel('z')
     ax2= gca; 
     Cfig.Children(1).TickLabelInterpreter= "latex";
@@ -1141,8 +1152,8 @@ for i = 1:length(time)
         ylabel('$z$')
         s_ax.FontSize= 10;
         s_ax.TickLabelInterpreter= "latex";
-        s_ax.XLabel.FontSize= 10;
-        s_ax.YLabel.FontSize= 10;
+        s_ax.XLabel.FontSize= 12;
+        s_ax.YLabel.FontSize= 12;
         s_ax.Title.FontSize= 12;
         k= k+1;
     end
@@ -1157,8 +1168,8 @@ for i = 1:length(time)
         ylabel('$z$')
         s_ax.FontSize= 10;
         s_ax.TickLabelInterpreter= "latex";
-        s_ax.XLabel.FontSize= 10;
-        s_ax.YLabel.FontSize= 10;
+        s_ax.XLabel.FontSize= 12;
+        s_ax.YLabel.FontSize= 12;
         s_ax.Title.FontSize= 12;
         k= k+1;
     end
@@ -1173,8 +1184,8 @@ for i = 1:length(time)
         ylabel('$z$')
         s_ax.FontSize= 10;
         s_ax.TickLabelInterpreter= "latex";
-        s_ax.XLabel.FontSize= 10;
-        s_ax.YLabel.FontSize= 10;
+        s_ax.XLabel.FontSize= 12;
+        s_ax.YLabel.FontSize= 12;
         s_ax.Title.FontSize= 12;
         k= k+1;
     end
@@ -1190,8 +1201,8 @@ for i = 1:length(time)
         hold off
         s_ax.FontSize= 10;
         s_ax.TickLabelInterpreter= "latex";
-        s_ax.XLabel.FontSize= 10;
-        s_ax.YLabel.FontSize= 10;
+        s_ax.XLabel.FontSize= 12;
+        s_ax.YLabel.FontSize= 12;
         s_ax.Title.FontSize= 12;
         k= k+1;
     end
