@@ -1,4 +1,4 @@
-clear all
+qclear all
 clc
 %close all
 
