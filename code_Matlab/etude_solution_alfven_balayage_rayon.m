@@ -97,18 +97,18 @@ end
 diam_elec= vpa(1e-3); % en mètre
 rayon_elec= diam_elec/2;
 dist_inter_elec= 15*10^-3; % en mètre
-h= vpa(0.1); % distance entre la plaque inf et sup en mètre
+h= vpa(0.1); % Distance between the top and bottom plate en meter
 
 % Grandeurs caractéristiques
-L_carac=h; %longueur caractéristique ==> hauteur de la cuve
-tau_eta= L_carac^2/eta; % Inverse de la fréquence de coupure de l'effet de peau résistif
-tau_nu= L_carac^2/nu_gal;  % Inverse de la fréquence de coupure de l'effet de peau visqueux
-I0=3.18; % Injection courant en Ampère
-j0= I0/(L_carac)^2; %%% forme de jz = j0/(pi*sigma_r^2)*exp(-(r/sigma_r)^2)
-b0= mu_0*I0/(L_carac); %%% forme de b_theta= b0*(1-exp(-((r)/sigma_r).^2))./(r);
-E0= eta/L_carac * b0;
-joule_time= rho_gal/(sigma_gal*B0^2);
-tau_alfven=h*sqrt(rho_gal*mu_0)/B0;
+L_carac=h; % Characteristic length ==> height of the vessel
+tau_eta= L_carac^2/eta; % Diffusive penetration time of the resistive skin effect
+tau_nu= L_carac^2/nu_gal;  % Diffusive penetration time of the viscous skin effect
+I0=3.18; % Current injected at by the electrode
+j0= I0/(L_carac)^2; % Form of jz = j0/(pi*sigma_r^2)*exp(-(r/sigma_r)^2)
+b0= mu_0*I0/(L_carac); % form of b_theta= b0*(1-exp(-((r)/sigma_r).^2))./(r);
+E0= eta/L_carac * b0; % Characteristic electric field
+joule_time= rho_gal/(sigma_gal*B0^2); % Joule time
+tau_alfven=h*sqrt(rho_gal*mu_0)/B0; % Alfven time, time of propagation to cross the height h
 % 2D time
 TwoD_time= joule_time*10.^2;
 TwoD_time_norm= TwoD_time*0.5;
@@ -118,12 +118,12 @@ sigma_r= rayon_elec/L_carac;% diam_adm de l'électrode
 hadm=h/L_carac;
 
 % Nombre adm
-Pm_num= nu_gal/(eta); %nb de Prandtl magnétique 
-va_num= B0/sqrt(rho_gal*mu_0); %Vitesse d'Alfven 
-S_num=va_num*L_carac/eta; %Nombre de Lundquist basé sur la hauteur récipient
-Ha_num= B0*L_carac*sqrt(sigma_gal/visco_gal); %Nombre d'Hartmann basé sur la hauteur récipient
+Pm_num= nu_gal/(eta); % magnetic Prandtl number
+va_num= B0/sqrt(rho_gal*mu_0); % Alfven speed
+S_num=va_num*L_carac/eta; % Lundquist number based of the height of the vessel
+Ha_num= B0*L_carac*sqrt(sigma_gal/visco_gal); % Hartmann number based on the height of the vessel
 
-Freq_Alfven= B0/sqrt(rho_gal*mu_0)/L_carac;
+Freq_Alfven= B0/sqrt(rho_gal*mu_0)/L_carac; % Alfven frequency ==> inverse of the Alfven time
 
 %%%% Controle parameter: frequency %%%%
 frequence_forcage= [];% ; %en Hz %0.01*tau^-1
@@ -132,7 +132,7 @@ if ~exist('frequence_forcage') || isempty(frequence_forcage)
     frequence_forcage= input('Write the frequency (in Hz) to test : \n');
 end
 omega_inf= vpa(2*sym(pi)*frequence_forcage);%390);
-epsilon= tau_eta*omega_inf;
+epsilon= tau_eta*omega_inf; % Dimensionless number equals to R_eta ==> w*tau_eta
 
 % New control parameter
 Rnu_fixed= 0;
@@ -160,7 +160,8 @@ calculate_B= [];
 calculate_E= [];
 calculate_J= [];
 calculate_time_evolution= 0;
-save_data= 0;
+save_data= [];
+show_fig= [];
 
 if ~exist('calculate_U') || isempty(calculate_U)
     calculate_U=input('Do you want to calculate the velocity field ? Yes (1), No (0) \n');
@@ -184,6 +185,10 @@ end
 if ~exist('save_data') || isempty(save_data)
     save_data=input(...
         'Do you want to save data ? Yes (1), No (0) \n');
+end
+if ~exist('show_fig') || isempty(show_fig)
+    show_fig=input(...
+        'Do you want to display figures ? Yes (1), No (0) \n');
 end
 
 
@@ -252,11 +257,9 @@ dephasage_mat= vpa(zeros(1,1));
 
 %% ampl/phase shift coefficient calculation
 
-ll MHD solution for a radial sweeping")
+ disp("calculing MHD solution for a radial sweeping...")
 
 % initialisation vecteur signal max top/bottom
-% E_max_top= [];
-% E_max_bot= [];
 E_env= [];
 E_phase= [];
 J_env= [];
@@ -387,7 +390,18 @@ parfor ind= 1:length(r_investigation)
    
 end
 
+%% Saving section 
+if save_data == 1
+    disp('choose the folder to save data')
+    selpath = uigetdir(pwd);
+    save([selpath,'\donnees.mat'],'epsilon','Ha_num','S_num','B0',"frequence_forcage",'Rnu',...
+        "Reta","Pm_num","r_investigation","r_min","r_max","R","nb_point_z","nb_point_r","h",...
+        "h_max","nb_kt","E_env","E_phase", "J_env","J_phase","gradV_env","gradV_phase",...
+        "B_env","B_phase","A_env","A_phase","s1_struc","k1_struc","s2_struc",...
+        "k2_struc","V_struc","E_struc","B_struc","A_struc","J_struc","precision",...
+        "calculate_U","calculate_V","calculate_B","calculate_E","calculate_J")
 
+end
 
 %% Parameter of amplitude and phase mapping (r,z)
 exp_Ha= floor(log10(double(Ha_num)));
@@ -408,8 +422,20 @@ font_sz_lbl_lgd= 14;
 font_sz_x= 14;
 font_sz_y= 14;
 font_sz_glb= 12;
-%% Figure: enveloppe, phase, attenuation and pahse shift
-
+%% Figure: enveloppe, phase, attenuation and phase shift
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Comments on the parameters displayed be the model.
+% For all field (u_\theta,b_\theta,partial_r_phi,Er_jr) are show,:
+% - the envelope written "|\hat{a_i(r,z}|", where \hat represent the fourier
+% transform on the time variable and a_i a given component of the field
+% - the phase written "\varphi[ a_i(r,z)]" = \arg(\hat{a_i(r,z})
+% For Er and \partial_r_phi are also displayed :
+% - the attenuation coefficient written "\alpha(r,z)"=
+% \ln(|\hat{a_i(r,z}|/|\hat{a_i(r,z=0}|)
+% - the phase shift written "\varphi_\Delta(r,z)"= \varphi[ a_i(r,z)] - 
+% \varphi[ a_i(r,z=0)]
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+if show_fig == 1
 
 if calculate_B == 1
 
@@ -423,7 +449,7 @@ if calculate_B == 1
     % plot(double(r_investigation),sqrt(2*pi*eta/(frequence_forcage))/h*ones(nb_point_r,1),':k','linewidth',1.5)
     colormap(WR2)%colormap_vect)
     c= colorbar;
-    c.Label.String = '$|b_{\theta}\left(r,z\right)|$';
+    c.Label.String = '$|\hat{b}_{\theta}\left(r,z\right)|$';
     c.Label.Interpreter= 'latex';
     c.TickLabelInterpreter='latex';
     c.Label.FontSize= font_sz_lbl_lgd;
@@ -484,7 +510,7 @@ if calculate_U == 1
     % plot(double(r_investigation),sqrt(2*pi*eta/(frequence_forcage))/h*ones(nb_point_r,1),':k','linewidth',1.5)
     colormap(WR2)%colormap_vect)
     c= colorbar;
-    c.Label.String = '$|u_{\theta}\left(r,z\right)|$';
+    c.Label.String = '$|\hat{u}_{\theta}\left(r,z\right)|$';
     c.Label.Interpreter= 'latex';
     c.TickLabelInterpreter='latex';
     c.Label.FontSize= font_sz_lbl_lgd;
@@ -542,7 +568,7 @@ if calculate_J == 1
     % plot(double(r_investigation),sqrt(2*pi*eta/(frequence_forcage))/h*ones(nb_point_r,1),':k','linewidth',1.5)
     colormap(WR2)%colormap_vect)
     c= colorbar;
-    c.Label.String = '$|j_{r}\left(r,z\right)|$';
+    c.Label.String = '$|\hat{j}_{r}\left(r,z\right)|$';
     c.Label.Interpreter= 'latex';
     c.TickLabelInterpreter='latex';
     c.Label.FontSize= font_sz_lbl_lgd;
@@ -588,7 +614,7 @@ if calculate_J == 1
     ylim([0, 1])
 
 end
-%%
+%
 if calculate_V == 1
     att_coef_V= log(transpose(gradV_env./gradV_env(1:end,1)));
     phase_diff_V= (gradV_phase-gradV_phase(:,1))';
@@ -604,7 +630,7 @@ if calculate_V == 1
     % plot(double(r_investigation),sqrt(2*pi*eta/(frequence_forcage))/h*ones(nb_point_r,1),':k','linewidth',1.5)
     colormap(WR2)%colormap_vect)
     c= colorbar;
-    c.Label.String = '$|\partial_{r} \phi\left(r,z\right)|$';
+    c.Label.String = '$|\widehat{\partial_{r}\phi}\left(r,z\right)|$';
     c.Label.Interpreter= 'latex';
     c.TickLabelInterpreter='latex';
     c.Label.FontSize= font_sz_lbl_lgd;
@@ -721,7 +747,7 @@ if calculate_E == 1
     % plot(double(r_investigation),sqrt(2*pi*eta/(frequence_forcage))/h*ones(nb_point_r,1),':k','linewidth',1.5)
     colormap(WR2)%colormap_vect)
     c= colorbar;
-    c.Label.String = '$|E_{r} \left(r,z\right)|$';
+    c.Label.String = '$|\hat{E}_{r} \left(r,z\right)|$';
     c.Label.Interpreter= 'latex';
     c.TickLabelInterpreter='latex';
     c.Label.FontSize= font_sz_lbl_lgd;
@@ -822,7 +848,7 @@ if calculate_E == 1
 
 end
 
-
+end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Evolution temporelle a coder !!                    %
