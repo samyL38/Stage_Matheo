@@ -1,5 +1,5 @@
 function [env,phase,z]=amplitudes_somme_onde(A_num,s1_num,...
-    k1_num,s2_num,k2_num,h,npts,precision,pulsation_inf,phase_inf,...
+    k1_num,s2_num,k2_num,z_i,precision,pulsation_inf,phase_inf,...
     pulsation_sup,phase_sup)
 
 %A Calculates, bottom (z=0), top(z=h), max and  min amplitudes of oscillations for quantity A describing Alfven wave of the form
@@ -42,7 +42,7 @@ function [env,phase,z]=amplitudes_somme_onde(A_num,s1_num,...
     k1 = vpa(k1_num);
     s2 = vpa(s2_num);
     k2 = vpa(k2_num);
-    z=0:h/(npts-1):h;
+    z = vpa(z_i);
     
     if exist('pulsation_inf') && exist('pulsation_sup')
         maxi= max(pulsation_inf,pulsation_sup);

@@ -12,7 +12,7 @@ precis_b= 32;
 %% ajout des chemins utiles au fonctionnement du code
 % addpath(['C:\Users\lalloz\Documents\these\onde alfven\etude theorique numerique\'...
 %     'programme_calcul_ratio_ampl_phase_shift']);
-path_model =[]; % you can write here your own sought path
+path_model =pwd; % you can write here your own sought path
 if ~exist('path_model') || isempty(path_model)
     path_model= uigetdir([],'Select the folder which contains the model scripts');
     path_model= fullfile(path_model,'\');
@@ -33,12 +33,12 @@ addpath(fullfile(path_com_function(1).folder,'\'));
 syms mu_0 sigma_gal visco_gal rho_gal omega_0 B0 h I0 kt_max epsilon
 
 % Parameters to define
-B0_double= []; %champ magnetique uniforme en Tesla
-h_double= []; % distance entre la plaque inf et sup en mètre
-frequence_forcage_double= [];% ; %en Hz %0.01*tau^-1
-nb_kt= [];%1200;%2500;%3200;%1000;%2100;%
-r_investigation_double= [];
-R_double= [];
+B0_double= 1.3; %champ magnetique uniforme en Tesla
+h_double= 0.1; % distance entre la plaque inf et sup en mètre
+frequence_forcage_double= 80;% ; %en Hz %0.01*tau^-1
+nb_kt= 800;%1200;%2500;%3200;%1000;%2100;%
+r_investigation_double= 0.2;
+R_double= 0.8;
 
 if ~exist('B0_double') || isempty(B0_double)
     B0_double= vpa(input('Write the magnetic field intensity in Tesla : \n'));
@@ -144,11 +144,11 @@ while find_brk == 0
     % solution for the bottom plate
     disp('Calculating alfven wave solutions for the bottom plate forcing...')
     %DigitsOld= digits(precision);
-    [s1,k1,s2,k2,A,B,V,J,E,Ar,dtAr]= alfven_non_homogene_vpa(Pm_num,S_num,hadm,...
+    [s1,k1,s2,k2,A,B,V,J,E,Ar,dtAr]= alfven_non_homogene_neumann_on_U_vpa(Pm_num,S_num,hadm,...
         kt_adm(1),Bb_ri(1),epsilon_inf,precision,'bottom'); % 0 == bottom
     if length(kt_adm) > 1
     parfor i =2:length(kt_adm)-1
-        [s1i,k1i,s2i,k2i,Ai,Bi,Vi,Ji,Ei]= alfven_non_homogene_vpa(vpa(Pm_num),vpa(S_num),vpa(hadm),...
+        [s1i,k1i,s2i,k2i,Ai,Bi,Vi,Ji,Ei]= alfven_non_homogene_neumann_on_U_vpa(vpa(Pm_num),vpa(S_num),vpa(hadm),...
             kt_adm(i),Bb_ri(i),epsilon_inf,precision,'bottom');
 
         A= [A ; Ai];
@@ -160,7 +160,7 @@ while find_brk == 0
         k1= [k1 ; k1i];
         s2= [s2 ; s2i];
         k2= [k2 ; k2i];
-        i;
+        %i
 
     end
     else
@@ -174,11 +174,15 @@ while find_brk == 0
     k2_less= vpa(k2,precis_b);
     hadm_less= vpa(hadm,precis_b);
 
-    V_less= vpa(V.*besselj(ordre_B,kt_adm(1:end-1)'.*r_investigation),precis_b);
+    A_less= vpa(V.*besselj(ordre_B,kt_adm(1:end-1)'.*r_investigation),precis_b);
     disp('fin V')
+%     B_less= vpa(B.*besselj(ordre_B,kt_adm(1:end-1)'.*r_investigation),precis_b);
+%     disp('fin B')
+%     A_less= vpa(A.*besselj(ordre_B,kt_adm(1:end-1)'.*r_investigation),precis_b);
+%     disp('fin A')
 
-    Produit1= abs(V_less(:,5).*exp(s2_less));
-    Produit2= abs(V_less(:,2).*exp(s1_less));
+    Produit1= abs(A_less(:,5).*exp(s2_less));
+    Produit2= abs(A_less(:,2).*exp(s1_less));
 
     nb_mode_err_1= sum( double(Produit1) > error_born);
     nb_mode_err_2= sum( double(Produit1) > error_born);

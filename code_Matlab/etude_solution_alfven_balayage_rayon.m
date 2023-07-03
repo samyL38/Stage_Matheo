@@ -29,7 +29,7 @@ clc
 %%%%
 %% toolbox flottant haute précision
 %addpath('C:\Users\lalloz\Documents\Multiprecision Computing Toolbox')
-precision= 10*32; % Setup default precision to 40 decimal digits (quadruple).
+precision= 8*32; % Setup default precision to 40 decimal digits (quadruple).
 digits(precision);  
 
 set(0,'defaultTextInterpreter','latex')
